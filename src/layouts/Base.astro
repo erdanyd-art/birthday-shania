@@ -1,0 +1,64 @@
+---
+import '@fontsource-variable/fraunces/full.css';
+import '@fontsource-variable/fraunces/full-italic.css';
+import '@fontsource-variable/newsreader/standard.css';
+import '@fontsource-variable/newsreader/standard-italic.css';
+import '@fontsource-variable/instrument-sans/standard.css';
+import '../styles/global.css';
+import Chrome from '../components/Chrome.astro';
+import { site } from '../../content/site';
+import { assertLaunchReady, isPreviewBuild } from '../lib/content';
+
+interface Props {
+  /** Room name for the browser tab; omit on the entrance. */
+  title?: string;
+  /** "night" for rooms lit by stage light (deep cherry ground). */
+  tone?: 'paper' | 'night';
+  /** The box office hides the header for a clean first impression. */
+  chrome?: boolean;
+  current?: 'house';
+}
+
+const { title, tone = 'paper', chrome = true, current } = Astro.props;
+
+assertLaunchReady();
+
+const pageTitle = title ? `${title} · ${site.title}` : site.title;
+---
+
+<!doctype html>
+<html lang="en" data-tone={tone}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>{pageTitle}</title>
+    <meta name="description" content={site.description} />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="theme-color" content={tone === 'night' ? '#641522' : '#F0E9D9'} />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={site.title} />
+    <meta property="og:description" content={site.description} />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+    {chrome && <Chrome current={current} />}
+    <main id="main">
+      <slot />
+    </main>
+    {isPreviewBuild && <p class="preview-badge">Preview build · placeholders shown</p>}
+  </body>
+</html>
+
+<style>
+  /* A strip at the foot of every page, so a preview can never pass for the real thing. */
+  .preview-badge {
+    padding: .7rem var(--gutter-r) calc(.7rem + env(safe-area-inset-bottom, 0px)) var(--gutter-l);
+    background: var(--ink);
+    color: var(--paper);
+    font: 600 .68rem/1.2 var(--font-ui);
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    text-align: center;
+  }
+</style>

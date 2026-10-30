@@ -1,0 +1,129 @@
+---
+// Overture: The Box Office. The first impression, and the way in.
+import Base from '../layouts/Base.astro';
+import Facade from '../components/Facade.astro';
+import HouseMap from '../components/HouseMap.astro';
+import Ticket from '../components/Ticket.astro';
+import { lines } from '../../content/host';
+import { site } from '../../content/site';
+---
+
+<Base chrome={false}>
+  <div class="boxoffice">
+    <div class="copy">
+      <h1 class="visually-hidden">{site.title}</h1>
+      <p class="kicker">Opening night · {site.openingNight.label}</p>
+      <p class="voice offstage">“{lines.boxOffice}”</p>
+    </div>
+
+    <div class="theatre" data-theatre>
+      <div class="frame">
+        <HouseMap />
+        <div class="front"><Facade /></div>
+      </div>
+    </div>
+
+    <div class="way-in">
+      <Ticket />
+      <a class="returning" href="/house" data-returning hidden>Or go straight to the house</a>
+    </div>
+  </div>
+</Base>
+
+<script>
+  import { markVisited, readProgress } from '../lib/progress';
+  import { reducedMotion, wait } from '../lib/motion';
+
+  const theatre = document.querySelector<HTMLElement>('[data-theatre]')!;
+  const returning = document.querySelector<HTMLElement>('[data-returning]')!;
+  const seen = readProgress();
+  if (seen.introSeen || seen.visited.length) returning.hidden = false;
+
+  document.addEventListener('ticket:torn', async () => {
+    markVisited('boxoffice');
+    const firstVisit = !readProgress().introSeen;
+    const next = firstVisit ? '/stage' : '/house';
+    if (reducedMotion()) {
+      window.location.href = next;
+      return;
+    }
+    await wait(280);
+    theatre.classList.add('is-open');
+    await wait(firstVisit ? 1050 : 950);
+    if (firstVisit) {
+      theatre.classList.add('is-entering');
+      await wait(500);
+    }
+    window.location.href = next;
+  });
+
+  window.addEventListener('pageshow', (e) => {
+    if (e.persisted) theatre.classList.remove('is-open', 'is-entering');
+  });
+</script>
+
+<style>
+  .boxoffice {
+    min-height: 100dvh;
+    max-width: 72rem;
+    margin: 0 auto;
+    display: grid;
+    grid-template-rows: auto minmax(16rem, 1fr) auto;
+    gap: clamp(1rem, 3dvh, 2rem);
+    padding-top: calc(env(safe-area-inset-top, 0px) + clamp(1.25rem, 4dvh, 2.5rem));
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + clamp(1.25rem, 4dvh, 2.5rem));
+    padding-left: var(--gutter-l);
+    padding-right: var(--gutter-r);
+  }
+  .copy { display: grid; gap: .7rem; }
+  .offstage { font-size: clamp(1.6rem, 6.6vw, 3rem); max-width: 14em; }
+
+  .theatre {
+    min-height: 0;
+    display: grid;
+    place-items: center;
+    perspective: 1700px;
+  }
+  .frame {
+    position: relative;
+    height: 100%;
+    max-height: 64dvh;
+    max-width: 100%;
+    aspect-ratio: 360 / 486;
+    transform-origin: 63.3% 44.2%; /* the stage, in the drawing */
+    transition: transform var(--dur-move) var(--ease-paper), opacity var(--dur-move) ease;
+  }
+  .frame > :global(*), .front { position: absolute; inset: 0; }
+  .front {
+    transform-origin: 2.2% 50%; /* the left wall: the hinge */
+    transition: transform 1s var(--ease-paper), filter 1s ease;
+    filter: drop-shadow(0 0 0 transparent);
+  }
+  .is-open .front {
+    transform: rotateY(-82deg);
+    filter: drop-shadow(-10px 6px 14px color-mix(in srgb, var(--ink) 30%, transparent));
+  }
+  .is-entering .frame { transform: scale(2.6); opacity: 0; }
+
+  .way-in { display: grid; gap: 1rem; justify-items: start; }
+  .returning {
+    font: 600 .78rem/1.2 var(--font-ui);
+    letter-spacing: .06em;
+    color: var(--cherry);
+    text-underline-offset: .25em;
+    padding-block: .6rem;
+  }
+
+  @media (min-width: 900px) {
+    .boxoffice {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      grid-template-rows: 1fr auto auto 1fr;
+      column-gap: 4rem;
+      height: 100dvh;
+    }
+    .copy { grid-column: 1; grid-row: 2; }
+    .way-in { grid-column: 1; grid-row: 3; margin-top: 1.5rem; }
+    .theatre { grid-column: 2; grid-row: 1 / -1; }
+    .frame { max-height: 86dvh; }
+  }
+</style>

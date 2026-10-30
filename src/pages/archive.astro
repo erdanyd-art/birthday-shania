@@ -1,0 +1,221 @@
+---
+// Scene II: The Archive of Her. Two prints under a bare bulb in the attic.
+// The childhood print rests on top of the current one; lifting it sets then beside now.
+import Base from '../layouts/Base.astro';
+import CueCards from '../components/CueCards.astro';
+import Print from '../components/Print.astro';
+import { archive } from '../../content/archive';
+import { lines } from '../../content/host';
+import { site } from '../../content/site';
+import { findPhoto, showPlaceholders } from '../lib/content';
+import { rooms } from '../lib/rooms';
+
+const thenImage = findPhoto(archive.then.file);
+const nowImage = findPhoto(archive.now.file);
+const narration = archive.narration;
+---
+
+<Base title="The Archive of Her">
+  <article class="page archive" data-archive>
+    <header class="head">
+      <p class="kicker">Scene II · Upstairs</p>
+      <h1 class="title">The Archive of Her</h1>
+    </header>
+
+    <CueCards variant="note" lines={lines.archive} heardKey="archive" class="note" />
+
+    <div class="table-wrap">
+      <svg class="attic" viewBox="0 0 100 20" preserveAspectRatio="none" aria-hidden="true">
+        <path d="M0 20 L50 0 L100 20" fill="none" stroke="#171717" stroke-width="1.6" vector-effect="non-scaling-stroke" />
+        <path d="M6 20 L50 2.4 L94 20" fill="none" stroke="#171717" stroke-width="1" vector-effect="non-scaling-stroke" opacity=".45" />
+      </svg>
+      <div class="bulb" aria-hidden="true"><span class="cord"></span><span class="glass"></span></div>
+      <div class="table">
+        <Print
+          class="print-now"
+          image={nowImage}
+          alt={archive.now.alt}
+          caption={archive.now.caption}
+          focus={archive.now.focus}
+          needed={`Current photo of ${site.subject}: add it in content/archive.ts`}
+        />
+        <Print
+          class="print-then"
+          data-then=""
+          image={thenImage}
+          alt={archive.then.alt}
+          caption={archive.then.caption}
+          focus={archive.then.focus}
+          needed={`Childhood photo of ${site.subject}: add it in content/archive.ts`}
+        />
+      </div>
+    </div>
+
+    <div class="controls">
+      <button type="button" class="btn" data-lift aria-pressed="false">Lift the photograph</button>
+      <span class="hint">or slide it aside</span>
+    </div>
+
+    <div class="narration" data-narration>
+      {narration?.length ? (
+        narration.map((p) => <p>{p}</p>)
+      ) : (
+        showPlaceholders && (
+          <p class="narration-placeholder">
+            <span class="stamp">Placeholder</span>
+            {site.creator}’s narration goes here: a few sentences, set between the two photographs.
+            Write it in content/archive.ts.
+          </p>
+        )
+      )}
+    </div>
+
+    <nav class="onward" aria-label="Where next">
+      <a class="btn ghost" href="/house">Back to the house</a>
+      <a class="next" href={rooms.dressing.href}>Next door: {rooms.dressing.name}</a>
+    </nav>
+  </article>
+</Base>
+
+<script>
+  import { markVisited } from '../lib/progress';
+
+  markVisited('archive');
+
+  const scene = document.querySelector<HTMLElement>('[data-archive]')!;
+  const button = document.querySelector<HTMLButtonElement>('[data-lift]')!;
+  const then = document.querySelector<HTMLElement>('[data-then]')!;
+
+  // Without this script everything is simply visible; with it, the narration waits for the lift.
+  scene.classList.add('is-staged');
+
+  const setLifted = (lifted: boolean) => {
+    scene.classList.toggle('is-lifted', lifted);
+    button.setAttribute('aria-pressed', String(lifted));
+    button.textContent = lifted ? 'Put it back' : 'Lift the photograph';
+  };
+  button.addEventListener('click', () => setLifted(!scene.classList.contains('is-lifted')));
+
+  // Slide the old print aside with a finger, or just tap it.
+  let start: { x: number; y: number } | null = null;
+  then.addEventListener('pointerdown', (e) => {
+    if (scene.classList.contains('is-lifted')) return;
+    start = { x: e.clientX, y: e.clientY };
+    then.setPointerCapture(e.pointerId);
+    then.classList.add('is-dragging');
+  });
+  then.addEventListener('pointermove', (e) => {
+    if (!start) return;
+    then.style.translate = `${e.clientX - start.x}px ${(e.clientY - start.y) * 0.5}px`;
+  });
+  const release = (e: PointerEvent, cancelled = false) => {
+    if (!start) return;
+    const moved = Math.hypot(e.clientX - start.x, e.clientY - start.y);
+    start = null;
+    then.classList.remove('is-dragging');
+    then.style.translate = '';
+    if (!cancelled && (moved > 40 || moved < 6)) setLifted(true);
+  };
+  then.addEventListener('pointerup', (e) => release(e));
+  then.addEventListener('pointercancel', (e) => release(e, true));
+</script>
+
+<style>
+  .archive {
+    display: grid;
+    gap: 1.5rem;
+    grid-template-areas: 'head' 'note' 'table' 'controls' 'narration' 'onward';
+  }
+  .head { grid-area: head; display: grid; gap: .5rem; }
+  .archive > :global(.note) { grid-area: note; justify-self: start; }
+
+  /* ---- the table and the two prints ---- */
+  .table-wrap {
+    grid-area: table;
+    container-type: inline-size;
+    width: min(100%, 32rem);
+    justify-self: center;
+    position: relative;
+    padding-top: 4.2rem;
+    background: radial-gradient(ellipse 60% 55% at 50% 38%, color-mix(in srgb, var(--edge) 90%, transparent), transparent 70%);
+  }
+  /* The attic roof over the table; the bulb hangs from its ridge. */
+  .attic { position: absolute; top: 0; left: -4%; width: 108%; height: 3.4rem; overflow: visible; }
+  .bulb { position: absolute; top: 0; left: 50%; display: grid; justify-items: center; translate: -50% 0; }
+  .cord { width: 1.5px; height: 2rem; background: var(--ink); }
+  .glass { width: .9rem; height: .9rem; border-radius: 50%; border: 1.5px solid var(--ink); background: var(--edge); }
+
+  .table {
+    position: relative;
+    height: 100cqw;
+    transition: height var(--dur-scene) var(--ease-paper);
+  }
+  .table > :global(.print) {
+    position: absolute;
+    top: 2cqw;
+    left: 14cqw;
+    width: 72cqw;
+    transform-origin: 50% 0;
+    transition:
+      translate var(--dur-scene) var(--ease-paper),
+      rotate var(--dur-scene) var(--ease-paper),
+      scale var(--dur-scene) var(--ease-paper);
+  }
+  .table > :global(.print-now) { translate: 3cqw 3cqw; rotate: 2.2deg; }
+  .table > :global(.print-then) { z-index: 2; rotate: -3deg; cursor: grab; touch-action: pan-y; }
+  .table > :global(.print-then.is-dragging) { transition: none; cursor: grabbing; }
+
+  .is-lifted .table { height: 72cqw; }
+  .is-lifted .table > :global(.print-then) { translate: -25cqw 4cqw; rotate: -4.5deg; scale: .64; cursor: default; }
+  .is-lifted .table > :global(.print-now) { translate: 25cqw 7cqw; rotate: 3deg; scale: .64; }
+
+  .controls { grid-area: controls; display: flex; flex-wrap: wrap; align-items: center; gap: .6rem 1rem; justify-self: center; }
+  .hint { font: italic 450 .98rem/1.3 var(--font-display); color: var(--ink-2); }
+
+  /* ---- narration ---- */
+  .narration {
+    grid-area: narration;
+    display: grid;
+    gap: .9rem;
+    max-width: 32em;
+    justify-self: center;
+    font-size: 1.16rem;
+    line-height: 1.6;
+  }
+  .is-staged:not(.is-lifted) .narration { display: none; }
+  .is-lifted .narration { animation: rise var(--dur-move) var(--ease-arrive) 320ms both; }
+  @keyframes rise {
+    from { opacity: 0; translate: 0 10px; }
+    to { opacity: 1; translate: 0 0; }
+  }
+  .narration-placeholder {
+    padding: 1rem 1.1rem;
+    border: 1.5px dashed var(--cherry);
+    font: 500 .92rem/1.5 var(--font-ui);
+    color: var(--ink-2);
+  }
+  .stamp {
+    display: inline-block;
+    margin-right: .5rem;
+    padding: .25rem .45rem;
+    border: 2px solid var(--cherry);
+    color: var(--cherry);
+    font: 700 .66rem/1 var(--font-ui);
+    letter-spacing: .2em;
+    text-transform: uppercase;
+  }
+
+  .onward { grid-area: onward; display: flex; flex-wrap: wrap; align-items: center; gap: .75rem 1.5rem; justify-self: center; margin-top: .5rem; }
+  .next { font: 600 .8rem/1.2 var(--font-ui); color: var(--cherry); text-underline-offset: .25em; padding-block: .6rem; }
+
+  @media (min-width: 900px) {
+    .archive {
+      grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr);
+      grid-template-areas: 'head table' 'note table' 'controls table' 'narration table' 'onward table';
+      grid-template-rows: auto auto auto auto 1fr;
+      column-gap: 4rem;
+      align-items: start;
+    }
+    .controls, .narration, .onward { justify-self: start; }
+  }
+</style>

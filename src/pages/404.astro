@@ -1,0 +1,17 @@
+---
+import Base from '../layouts/Base.astro';
+---
+
+<Base title="No such room">
+  <div class="page lost">
+    <p class="kicker">Wrong door</p>
+    <h1 class="title">This door doesn’t open.</h1>
+    <p class="sub">There’s no room here. The rest of the theatre is still standing.</p>
+    <a class="btn" href="/house">Back to the house</a>
+  </div>
+</Base>
+
+<style>
+  .lost { display: grid; gap: 1.25rem; justify-items: start; padding-top: clamp(3rem, 12vw, 7rem); }
+  .sub { font-size: 1.15rem; color: var(--ink-2); }
+</style>

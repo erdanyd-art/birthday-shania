@@ -1,0 +1,161 @@
+---
+// The entrance ticket. Tearing the stub (button, or dragging the stub itself)
+// fires a `ticket:torn` event on document; the page decides what happens next.
+import { site } from '../../content/site';
+---
+
+<div class="ticket-wrap">
+  <div class="ticket" data-ticket>
+    <div class="main">
+      <p class="admit">Admit one</p>
+      <p class="show">A small show in five rooms</p>
+      <dl class="meta">
+        <div><dt>Opening night</dt><dd>{site.openingNight.label}</dd></div>
+        <div><dt>Seat</dt><dd>Wherever you like</dd></div>
+      </dl>
+    </div>
+    <div class="stub" data-stub aria-hidden="true">
+      <span class="no">No. 0001</span>
+      <span>Admit one</span>
+    </div>
+  </div>
+  <div class="actions">
+    <button type="button" class="btn" data-tear>Tear the ticket</button>
+    <span class="hint">or drag the stub</span>
+  </div>
+</div>
+
+<script>
+  const ticket = document.querySelector<HTMLElement>('[data-ticket]');
+  const stub = document.querySelector<HTMLElement>('[data-stub]');
+  const button = document.querySelector<HTMLButtonElement>('[data-tear]');
+
+  if (ticket && stub && button) {
+    const tear = () => {
+      if (ticket.classList.contains('is-torn')) return;
+      stub.style.translate = '';
+      ticket.classList.add('is-torn');
+      button.disabled = true;
+      document.dispatchEvent(new CustomEvent('ticket:torn'));
+    };
+
+    button.addEventListener('click', tear);
+
+    let start: { x: number; y: number } | null = null;
+    stub.addEventListener('pointerdown', (e) => {
+      start = { x: e.clientX, y: e.clientY };
+      stub.setPointerCapture(e.pointerId);
+      stub.classList.add('is-dragging');
+    });
+    stub.addEventListener('pointermove', (e) => {
+      if (!start) return;
+      const dx = Math.max(0, e.clientX - start.x);
+      const dy = e.clientY - start.y;
+      stub.style.translate = `${dx}px ${dy * 0.4}px`;
+      if (dx > 44) {
+        start = null;
+        stub.classList.remove('is-dragging');
+        tear();
+      }
+    });
+    const release = () => {
+      start = null;
+      stub.classList.remove('is-dragging');
+      if (!ticket.classList.contains('is-torn')) stub.style.translate = '';
+    };
+    stub.addEventListener('pointerup', release);
+    stub.addEventListener('pointercancel', release);
+
+    // Coming back with the browser's back button restores the page from memory: mend the ticket.
+    window.addEventListener('pageshow', (e) => {
+      if (!e.persisted) return;
+      ticket.classList.remove('is-torn');
+      button.disabled = false;
+    });
+  }
+</script>
+
+<style>
+  .ticket-wrap { display: grid; gap: 1rem; justify-items: start; }
+  .ticket {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 4.4rem;
+    width: min(100%, 23rem);
+    rotate: -2deg;
+    filter: drop-shadow(0 8px 12px color-mix(in srgb, var(--ink) 16%, transparent));
+  }
+  .main {
+    min-width: 0;
+    background: var(--card);
+    padding: 1.15rem 1.1rem 1.05rem 1.25rem;
+    outline: 1px solid var(--cherry);
+    outline-offset: -7px;
+    transition: rotate var(--dur-move) var(--ease-arrive);
+  }
+  .admit {
+    font: 600 .68rem/1 var(--font-ui);
+    font-stretch: 75%;
+    letter-spacing: .32em;
+    text-transform: uppercase;
+    color: var(--cherry);
+  }
+  .show {
+    margin-top: .5rem;
+    font: italic 480 clamp(1.25rem, 5vw, 1.5rem)/1.15 var(--font-display);
+  }
+  .meta {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: .75rem;
+    margin: .85rem 0 0;
+    padding-top: .7rem;
+    border-top: 1px dashed var(--rule);
+  }
+  dt {
+    font: 600 .6rem/1.2 var(--font-ui);
+    font-stretch: 78%;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: var(--ink-2);
+  }
+  dd { margin: .2rem 0 0; font-size: .95rem; line-height: 1.25; }
+
+  .stub {
+    position: relative;
+    display: grid;
+    place-items: center;
+    padding: .8rem 0;
+    background: var(--card);
+    border-left: 2px dashed var(--cherry);
+    cursor: grab;
+    touch-action: none;
+    transition: translate var(--dur-move) var(--ease-arrive), rotate var(--dur-move) var(--ease-arrive), opacity var(--dur-move) ease;
+  }
+  .stub.is-dragging { transition: none; cursor: grabbing; }
+  .stub::before, .stub::after {
+    content: '';
+    position: absolute;
+    left: -9px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--paper);
+  }
+  .stub::before { top: -8px; }
+  .stub::after { bottom: -8px; }
+  .stub span {
+    writing-mode: vertical-rl;
+    font: 600 .68rem/1 var(--font-ui);
+    font-stretch: 75%;
+    letter-spacing: .3em;
+    text-transform: uppercase;
+    color: var(--cherry);
+  }
+  .stub .no { color: var(--ink); letter-spacing: .16em; font-variant-numeric: tabular-nums; }
+
+  .is-torn .stub { translate: 2.4rem 3.2rem; rotate: 14deg; opacity: 0; }
+  .is-torn .main { rotate: 1.5deg; }
+
+  .actions { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem 1rem; }
+  .hint { font: italic 450 .98rem/1.3 var(--font-display); color: var(--ink-2); }
+</style>

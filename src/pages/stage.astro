@@ -1,0 +1,134 @@
+---
+// Scene I: Enter the Host. In front of the closed curtain.
+import Base from '../layouts/Base.astro';
+import Ambrose from '../components/Ambrose.astro';
+import CueCards from '../components/CueCards.astro';
+import { lines } from '../../content/host';
+import { site } from '../../content/site';
+---
+
+<Base title="Enter the Host" tone="night">
+  <section class="stage" aria-labelledby="stage-h">
+    <h1 id="stage-h" class="visually-hidden">Enter the Host</h1>
+    <div class="curtain" aria-hidden="true"></div>
+    <div class="valance" aria-hidden="true"></div>
+    <div class="host" data-host><Ambrose /></div>
+    <div class="apron">
+      <div class="footlights" aria-hidden="true"></div>
+      <div class="cards" data-intro>
+        <CueCards lines={lines.intro} doneLabel="To the house" doneHref="/house" skipHref="/house" />
+      </div>
+      <div class="cards" data-return hidden>
+        <CueCards lines={lines.stageReturn} doneLabel="Back to the house" doneHref="/house" />
+        <button type="button" class="btn ghost replay" data-replay>Hear {site.host}’s introduction again</button>
+      </div>
+    </div>
+  </section>
+</Base>
+
+<script>
+  import { markIntroSeen, readProgress } from '../lib/progress';
+  import { reducedMotion } from '../lib/motion';
+
+  const intro = document.querySelector<HTMLElement>('[data-intro]')!;
+  const back = document.querySelector<HTMLElement>('[data-return]')!;
+  const host = document.querySelector<HTMLElement>('[data-host]')!;
+
+  if (readProgress().introSeen) {
+    intro.hidden = true;
+    back.hidden = false;
+    host.classList.add('is-here');
+  }
+
+  intro.addEventListener('cues:done', markIntroSeen);
+  intro.addEventListener('cues:skip', markIntroSeen);
+
+  // A small paper wobble each time he changes cards, like a toy-theatre figure being handled.
+  document.addEventListener('cues:line', () => {
+    if (reducedMotion()) return;
+    host.animate(
+      [{ rotate: '0deg' }, { rotate: '-2.5deg' }, { rotate: '1.4deg' }, { rotate: '0deg' }],
+      { duration: 460, easing: 'ease-in-out' },
+    );
+  });
+
+  document.querySelector('[data-replay]')!.addEventListener('click', () => {
+    back.hidden = true;
+    intro.hidden = false;
+    intro.querySelector('[data-cues]')!.dispatchEvent(new Event('cues:restart'));
+  });
+</script>
+
+<style>
+  .stage {
+    position: relative;
+    overflow: hidden;
+    min-height: calc(100dvh - var(--chrome-h) - env(safe-area-inset-top, 0px));
+    display: grid;
+    grid-template-rows: minmax(14rem, 1fr) auto;
+  }
+  .curtain {
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+      90deg,
+      var(--deep) 0 14px,
+      color-mix(in srgb, var(--deep) 68%, var(--cherry)) 26px,
+      var(--deep) 38px
+    );
+  }
+  .curtain::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to bottom, transparent 55%, color-mix(in srgb, var(--ink) 38%, transparent));
+  }
+  .valance {
+    position: absolute;
+    inset: 0 0 auto;
+    height: 2.6rem;
+    z-index: 1;
+    background: radial-gradient(circle at 50% 0, var(--cherry) 69%, transparent 71%) 0 0 / 3.2rem 2.6rem repeat-x;
+  }
+  .host {
+    position: relative;
+    z-index: 2;
+    align-self: end;
+    justify-self: center;
+    width: min(58vw, 17rem, 40dvh);
+    margin-bottom: -.3rem;
+    transform-origin: 50% 100%;
+    animation: enter 1.05s var(--ease-arrive) .25s both;
+  }
+  .host.is-here { animation: none; }
+  @keyframes enter {
+    from { translate: -110vw 0; }
+    to { translate: 0 0; }
+  }
+
+  .apron {
+    position: relative;
+    z-index: 3;
+    display: grid;
+    justify-items: center;
+    gap: .9rem;
+    background:
+      repeating-linear-gradient(90deg, transparent 0 5.5rem, color-mix(in srgb, var(--ink) 10%, transparent) 5.5rem calc(5.5rem + 1px)),
+      var(--card);
+    border-top: 2px solid var(--ink);
+    padding: 1.5rem var(--gutter-r) calc(1.5rem + env(safe-area-inset-bottom, 0px)) var(--gutter-l);
+  }
+  /* A row of footlights set into the lip of the stage, in front of the host. */
+  .footlights {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: 8px;
+    background: radial-gradient(circle at 50% 0, var(--edge) 0 3.5px, var(--ink) 4px 5px, transparent 5.5px) 1.4rem 0 / 2.8rem 8px repeat-x;
+  }
+  .cards { display: grid; justify-items: center; gap: .8rem; width: 100%; }
+  .cards > :global(.cues) { width: 100%; }
+  /* The apron is card, not curtain, so its ghost button keeps cherry ink. */
+  :global(html[data-tone='night']) .apron .replay { color: var(--cherry); }
+</style>
