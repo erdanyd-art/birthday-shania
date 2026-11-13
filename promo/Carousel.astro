@@ -1,0 +1,539 @@
+---
+// The Instagram carousel: seven pieces of Victorian printed matter for the theatre's
+// opening night, photographed on black card like an archive scan. Two inks (cherry, black)
+// on old paper; her pink appears only where something has been coloured in by hand.
+// Only served by `astro dev` (see astro.config.mjs); `npm run promo` photographs
+// each [data-slide] at 2x, so a 540 × 675 slide becomes a 1080 × 1350 PNG.
+import '@fontsource/abril-fatface/400.css';
+import '@fontsource/alfa-slab-one/400.css';
+import '@fontsource/im-fell-english/400.css';
+import '@fontsource/im-fell-english/400-italic.css';
+import '@fontsource/im-fell-english-sc/400.css';
+import '@fontsource/league-gothic/400.css';
+import '@fontsource/rye/400.css';
+import '@fontsource-variable/instrument-sans/standard.css';
+import '@fontsource-variable/fraunces/full.css';
+import '@fontsource-variable/fraunces/full-italic.css';
+import QRCode from 'qrcode';
+import Ambrose from '../src/components/Ambrose.astro';
+import { site } from '../content/site';
+import type { Pose } from '../content/types';
+import { copy } from './copy';
+
+// The QR is only drawn once the site has its real address (?url=, which `npm run promo` fills
+// from SITE_URL). Until then the stub carries a stamped stand-in that can't be scanned,
+// so a draft can't send anyone anywhere.
+const given = Astro.url.searchParams.get('url');
+const address = given && URL.canParse(given) ? new URL(given) : null;
+const qr = address
+  ? await QRCode.toString(address.href, { type: 'svg', margin: 0, errorCorrectionLevel: 'M', color: { dark: '#1B1714', light: '#0000' } })
+  : null;
+const shortAddress = address ? address.host + address.pathname.replace(/\/$/, '') : null;
+
+const [year, , day] = site.openingNight.iso.split('-');
+const ordinal = (n: number) => `${n}${['th', 'st', 'nd', 'rd'][n % 10 > 3 || Math.floor((n % 100) / 10) === 1 ? 0 : n % 10]}`;
+
+// Deterministic jitter, so torn edges come out the same on every render.
+const rand = (seed: number) => () => {
+  seed = (seed + 0x6d2b79f5) | 0;
+  let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+  t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+};
+/** A clip-path for paper: depth is how far (in %) the edge wanders in. */
+const torn = (seed: number, depth = 0.55, n = 48) => {
+  const r = rand(seed);
+  const at = (v: number) => v.toFixed(2);
+  const pts: string[] = [];
+  for (let i = 0; i <= n; i++) pts.push(`${at((i / n) * 100)}% ${at(r() * depth)}%`);
+  for (let i = 1; i <= n; i++) pts.push(`${at(100 - r() * depth * 1.3)}% ${at((i / n) * 100)}%`);
+  for (let i = n - 1; i >= 0; i--) pts.push(`${at((i / n) * 100)}% ${at(100 - r() * depth)}%`);
+  for (let i = n - 1; i > 0; i--) pts.push(`${at(r() * depth * 1.3)}% ${at((i / n) * 100)}%`);
+  return `clip-path:polygon(${pts.join(',')})`;
+};
+
+/** A five-pointed star as SVG points. */
+const starPoints = (cx: number, cy: number, R: number, r: number) =>
+  Array.from({ length: 10 }, (_, i) => {
+    const a = -Math.PI / 2 + (i * Math.PI) / 5;
+    const d = i % 2 ? r : R;
+    return `${(cx + Math.cos(a) * d).toFixed(1)},${(cy + Math.sin(a) * d).toFixed(1)}`;
+  }).join(' ');
+// The little star from the theatre's posters, for borders.
+const pip = 'M0 -5 l1.5 3.2 3.5 .3 -2.7 2.3 .9 3.4 -3.2 -1.8 -3.2 1.8 .9 -3.4 -2.7 -2.3 3.5 -.3 Z';
+const border = (w: number, h: number, step: number) => {
+  const pts: [number, number][] = [];
+  for (let x = 0; x <= w; x += step) pts.push([x, 0], [x, h]);
+  for (let y = step; y < h; y += step) pts.push([0, y], [w, y]);
+  return pts;
+};
+
+const poses: Pose[] = ['welcome', 'point', 'chest', 'bow'];
+const total = 5;
+const index = (n: number) => `${String(n).padStart(2, '0')} / ${String(total).padStart(2, '0')}`;
+const h = copy.headlines;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>Carousel · {site.title}</title>
+  </head>
+  <body>
+    <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+      <!-- Letterpress: ragged edges, specks where the ink missed, uneven density. -->
+      <filter id="press" x="-2%" y="-2%" width="104%" height="104%">
+        <feTurbulence type="fractalNoise" baseFrequency=".7" numOctaves="2" seed="4" result="grain" />
+        <feDisplacementMap in="SourceGraphic" in2="grain" scale="1.7" xChannelSelector="R" yChannelSelector="G" result="rough" />
+        <feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" seed="11" result="speck" />
+        <feColorMatrix in="speck" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  16 0 0 0 -4.3" result="holes" />
+        <feComposite in="rough" in2="holes" operator="in" result="specked" />
+        <feTurbulence type="fractalNoise" baseFrequency=".012" numOctaves="2" seed="2" result="patch" />
+        <feColorMatrix in="patch" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  .5 0 0 0 .72" result="density" />
+        <feComposite in="specked" in2="density" operator="in" />
+      </filter>
+      <!-- Watercolour laid on by hand: a wandering edge, a little bleed. -->
+      <filter id="wash" x="-10%" y="-10%" width="120%" height="120%">
+        <feTurbulence type="fractalNoise" baseFrequency=".03" numOctaves="3" seed="5" result="w" />
+        <feDisplacementMap in="SourceGraphic" in2="w" scale="12" xChannelSelector="R" yChannelSelector="G" result="laid" />
+        <feTurbulence type="fractalNoise" baseFrequency=".05" numOctaves="2" seed="13" result="pool" />
+        <feColorMatrix in="pool" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  .9 0 0 0 .45" result="uneven" />
+        <feComposite in="laid" in2="uneven" operator="in" />
+        <feGaussianBlur stdDeviation=".7" />
+      </filter>
+    </svg>
+
+    <div class="board">
+      <!-- 1. The playbill -->
+      <section class="slide bg-cherry" data-slide="01-playbill">
+        <header class="frame"><span>{site.title}</span><span>{index(1)}</span></header>
+        <h1 class="big cover-title">Shania’s<br />Little<br />World</h1>
+        <div class="lift" style="inset:26px 34px 30px;translate:122px 112px;scale:.52;rotate:5deg">
+          <div class="sheet" style={torn(7)}>
+            <div class="ink col">
+              <p class="pb-house">{copy.playbill.house}</p>
+              <div class="double-rule"></div>
+              <p class="pb-opening red">{copy.playbill.opening}</p>
+              <p class="pb-date">Saturday, {ordinal(Number(day))} November, {year}</p>
+              <div class="rule"></div>
+              <p class="pb-benefit">{copy.playbill.benefit}</p>
+              <p class="pb-miss">{copy.playbill.name}</p>
+              <p class="pb-presented">{copy.playbill.presented}</p>
+              <p class="pb-show red">{site.title}</p>
+              <p class="pb-rye">{copy.playbill.show}</p>
+              <div class="rule"></div>
+              <div class="pb-cols">
+                <p>The Part of <b>{copy.playbill.hostPart}</b><br />by <span class="sc">Mr. {site.host}</span><br /><i>{copy.playbill.hostNote}</i></p>
+                <p>With <b>Notes</b> from<br /><span class="sc">{copy.playbill.notesFrom}</span><br /><i>{copy.playbill.notesNote}</i></p>
+              </div>
+              <p class="pb-built red">{copy.playbill.built}</p>
+              <div class="rule"></div>
+              <p class="pb-curtain">{copy.playbill.curtain}</p>
+              <p class="pb-fine">{copy.playbill.fine[0]}<br />{copy.playbill.fine[1]}</p>
+              <p class="pb-vivat red">{copy.playbill.vivat}</p>
+            </div>
+          </div>
+        </div>
+        <footer class="foot">
+          <p class="voice-i">{h.cover.sub}</p>
+          <p class="label">Opening night</p>
+          <p class="date">{site.openingNight.label}</p>
+        </footer>
+      </section>
+
+      <!-- 2. A cutting from the newspaper -->
+      <section class="slide bg-ivory" data-slide="02-gazette">
+        <header class="frame"><span>{site.title}</span><span>{index(2)}</span></header>
+        <div class="side">
+          <h2 class="big gz-big">{h.gazette.big}</h2>
+          <p class="note">{h.gazette.small}</p>
+        </div>
+        <div class="lift" style="left:88px;top:104px;width:364px;height:458px;translate:108px 0;scale:.78;rotate:3deg">
+          <div class="sheet newsprint" style={torn(31, 0.3, 30)}>
+            <div class="ink">
+              <p class="gz-paper">{copy.gazette.paper}</p>
+              <p class="gz-line"><span>{copy.gazette.dateline}</span><span>{copy.gazette.price}</span></p>
+              <p class="gz-head">{copy.gazette.heading}</p>
+              <div class="gz-short"></div>
+              <div class="gz-body">
+                {copy.gazette.story.map((p, i) => <p class:list={{ first: i === 0 }}>{p}</p>)}
+              </div>
+              <div class="gz-short"></div>
+              <p class="gz-lost"><b>{copy.gazette.lostHeading}</b> — {copy.gazette.lost}</p>
+            </div>
+          </div>
+        </div>
+        <div class="tape" style="left:322px;top:122px;rotate:-2deg"></div>
+      </section>
+
+      <!-- 3. The host, to be cut out -->
+      <section class="slide bg-pink" data-slide="03-characters">
+        <header class="frame"><span>{site.title}</span><span>{index(3)}</span></header>
+        <div class="lead">
+          <p class="label">{h.characters.kicker}</p>
+          <h2 class="big ch-big">{h.characters.name}</h2>
+          <p class="note">{h.characters.sub}</p>
+        </div>
+        <div class="lift" style="inset:26px 34px 30px;translate:-100px 112px;scale:.5;rotate:-6deg">
+          <div class="sheet" style={torn(21)}>
+            <div class="ink col">
+              <p class="ch-plate">{copy.characters.plate}</p>
+              <p class="ch-head">{copy.characters.head}</p>
+              <p class="ch-in">in <span class="red">{site.title}</span></p>
+              <div class="double-rule"></div>
+              <div class="cast">
+                {poses.map((pose) => (
+                  <figure>
+                    <div class="cut">
+                      <Ambrose wire={false} decorative pose={pose} />
+                    </div>
+                    <figcaption>Mr. {site.host}. <i>{copy.characters.poses[pose]}.</i></figcaption>
+                  </figure>
+                ))}
+              </div>
+              <div class="rule"></div>
+              <p class="ch-penny"><span>{copy.characters.plain}</span><span class="red">{copy.characters.coloured}</span></p>
+              <p class="ch-fine">{copy.characters.fine}</p>
+            </div>
+          </div>
+        </div>
+        <div class="ch-host"><Ambrose wire={false} decorative pose="welcome" /></div>
+      </section>
+
+      <!-- 4. The handbill: her name, coloured in by hand -->
+      <section class="slide bg-ivory" data-slide="04-starring">
+        <header class="frame"><span>{site.title}</span><span>{index(4)}</span></header>
+        <p class="label st-kicker">{h.starring.kicker}</p>
+        <div class="lift" style="inset:34px 50px 38px;translate:30px -6px;scale:.62;rotate:4deg">
+          <div class="sheet" style={torn(44)}>
+            <svg class="hb-border ink" viewBox="0 0 400 563" preserveAspectRatio="none" aria-hidden="true">
+              <rect x="14" y="14" width="372" height="535" fill="none" stroke="#1B1714" stroke-width="1.6" />
+              <rect x="34" y="34" width="332" height="495" fill="none" stroke="#1B1714" stroke-width=".8" />
+              {border(372, 535, 18.6).map(([x, y]) => <path d={pip} transform={`translate(${14 + x} ${14 + y}) scale(.9)`} fill="#8F1D2C" />)}
+            </svg>
+            <div class="hb-star" aria-hidden="true">
+              <svg viewBox="0 0 300 290">
+                <polygon class="wash-fill" points={starPoints(150, 154, 140, 62)} filter="url(#wash)" />
+              </svg>
+              <svg viewBox="0 0 300 290" class="ink">
+                <polygon points={starPoints(150, 152, 140, 60)} fill="none" stroke="#1B1714" stroke-width="2.4" stroke-linejoin="miter" />
+                <polygon points={starPoints(150, 152, 128, 55)} fill="none" stroke="#1B1714" stroke-width=".9" />
+              </svg>
+            </div>
+            <div class="ink col hb-text">
+              <p class="hb-announce">{copy.starring.announces}</p>
+              <p class="hb-starring">{copy.starring.starring}</p>
+              <div class="hb-billed">
+                <p class="hb-name">{site.subject}</p>
+              </div>
+              <p class="hb-after">{copy.starring.after}</p>
+              <p class="hb-note">— {copy.starring.note} —</p>
+            </div>
+          </div>
+        </div>
+        <h2 class="big st-name">{site.subject}</h2>
+      </section>
+
+      <!-- 5. The ticket, with the way in on its stub -->
+      <section class="slide bg-cherry" data-slide="05-ticket">
+        <header class="frame"><span>{site.title}</span><span>{index(5)}</span></header>
+        <h2 class="big tk-big">{h.ticket.big}</h2>
+        <div class="lift" style="left:32px;top:178px;width:476px;height:228px;translate:-6px 108px;scale:.92;rotate:-5deg">
+          <div class="sheet pasteboard" style={torn(90, 0.5, 30)}>
+            <div class="tk">
+              <div class="tk-main ink">
+                <p class="tk-house">{copy.playbill.house}</p>
+                <p class="tk-admit red">{copy.ticket.admit}</p>
+                <p class="tk-to">{copy.ticket.to}</p>
+                <p class="tk-show">{site.title}</p>
+                <p class="tk-when">{copy.ticket.when}</p>
+                <p class="tk-no red">{copy.ticket.number}</p>
+              </div>
+              <div class="tk-stub">
+                {qr ? (
+                  <div class="qr" set:html={qr} />
+                ) : (
+                  <div class="qr qr--todo">
+                    <svg viewBox="0 0 29 29" aria-hidden="true">
+                      {[[0, 0], [22, 0], [0, 22]].map(([x, y]) => (
+                        <g>
+                          <rect x={x} y={y} width="7" height="7" fill="#1B1714" />
+                          <rect x={x + 1} y={y + 1} width="5" height="5" fill="#F3ECDD" />
+                          <rect x={x + 2} y={y + 2} width="3" height="3" fill="#1B1714" />
+                        </g>
+                      ))}
+                    </svg>
+                    <span class="stamp">Placeholder</span>
+                  </div>
+                )}
+                <p class="tk-scan ink">{qr ? copy.ticket.scan : 'Needs SITE_URL'}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <footer class="foot">
+          <p class="tk-what">{copy.ticket.label}</p>
+          {shortAddress && <p class="label">{shortAddress}</p>}
+        </footer>
+      </section>
+    </div>
+  </body>
+</html>
+
+<style>
+  :root {
+    --paper: #E8DCC2;
+    --news: #E2D8C2;
+    --stock: #F1EADB;
+    --cherry: #8F1D2C;
+    --pink: #F2B6C3;
+    --ink: #1B1714;
+    --grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .32  0 0 0 0 .24  0 0 0 0 .14  0 0 0 .16 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+    --fell: 'IM Fell English', Georgia, serif;
+    --fell-sc: 'IM Fell English SC', Georgia, serif;
+    --gothic: 'League Gothic', 'Arial Narrow', sans-serif;
+    --fat: 'Abril Fatface', Georgia, serif;
+    --slab: 'Alfa Slab One', Georgia, serif;
+    --rye: 'Rye', Georgia, serif;
+    --label: 'Instrument Sans Variable', 'Helvetica Neue', Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; }
+  p { margin: 0; }
+
+  .board { display: grid; justify-content: start; gap: 40px; padding: 40px; background: #333; }
+
+  /* Photographed on the archive's black card. */
+  .slide {
+    position: relative;
+    width: 540px;
+    height: 675px;
+    overflow: hidden;
+    background: radial-gradient(ellipse at 50% 45%, #2A2420, #120F0D 75%);
+  }
+  .lift {
+    position: absolute;
+    filter: drop-shadow(0 6px 10px rgb(0 0 0 / .55)) drop-shadow(0 1px 1px rgb(0 0 0 / .4));
+  }
+  .sheet {
+    position: absolute;
+    inset: 0;
+    padding: 20px 24px;
+    color: var(--ink);
+    background:
+      linear-gradient(to bottom, transparent 47.6%, rgb(90 60 30 / .10) 47.9%, rgb(255 250 235 / .35) 48.2%, transparent 48.6%),
+      radial-gradient(circle at 14% 20%, rgb(150 105 50 / .16), transparent 6%),
+      radial-gradient(circle at 83% 64%, rgb(150 105 50 / .12), transparent 8%),
+      radial-gradient(circle at 70% 9%, rgb(150 105 50 / .10), transparent 4%),
+      radial-gradient(circle at 30% 88%, rgb(150 105 50 / .12), transparent 7%),
+      var(--grain),
+      var(--paper);
+    box-shadow: inset 0 0 50px rgb(120 85 40 / .28), inset 0 0 8px rgb(120 85 40 / .3);
+  }
+  .ink { filter: url(#press); }
+  .col { height: 100%; display: flex; flex-direction: column; align-items: center; text-align: center; }
+  /* The red forme never sits quite where the black one did. */
+  .red { color: var(--cherry); position: relative; left: .7px; top: -.5px; }
+  .rule { width: 100%; height: 1.5px; background: var(--ink); margin: 7px 0; flex: none; }
+  .double-rule { width: 100%; height: 5px; border-block: 1.5px solid var(--ink); margin: 6px 0 8px; flex: none; }
+  .sc { font-family: var(--fell-sc); }
+
+  /* ---------- 1. playbill ---------- */
+
+  .pb-house { font: 400 25px/1 var(--gothic); letter-spacing: .14em; text-transform: uppercase; }
+  .pb-opening { font: italic 400 27px/1.05 var(--fell); }
+  .pb-date { margin-top: 3px; font: 400 15px/1.1 var(--slab); letter-spacing: .05em; text-transform: uppercase; }
+  .pb-benefit { font: italic 400 17px/1 var(--fell); }
+  .pb-miss { margin: 2px 0 4px; font: 400 58px/1 var(--fat); letter-spacing: -.01em; }
+  .pb-presented { font: italic 400 13px/1.2 var(--fell); }
+  .pb-show { margin: 4px 0 2px; font: 400 76px/.86 var(--gothic); text-transform: uppercase; letter-spacing: .01em; }
+  .pb-rye { margin-top: 4px; font: 400 18px/1 var(--rye); letter-spacing: .03em; }
+  .pb-cols { display: grid; grid-template-columns: 1fr 1px 1fr; gap: 0 12px; width: 100%; font: 400 12.5px/1.3 var(--fell); }
+  .pb-cols::before { content: ''; grid-column: 2; grid-row: 1; background: var(--ink); }
+  .pb-cols p:first-child { grid-column: 1; grid-row: 1; }
+  .pb-cols p:last-child { grid-column: 3; grid-row: 1; }
+  .pb-cols b { font: 400 15px/1.2 var(--slab); letter-spacing: .04em; text-transform: uppercase; }
+  .pb-built { margin-top: 8px; font: 400 13px/1 var(--slab); letter-spacing: .16em; text-transform: uppercase; }
+  .pb-curtain { font: 400 27px/1 var(--gothic); letter-spacing: .05em; text-transform: uppercase; color: transparent; -webkit-text-stroke: 1.1px var(--ink); }
+  .pb-fine { margin-top: 6px; font: italic 400 12px/1.35 var(--fell); }
+  .pb-vivat { margin-top: auto; font: 400 17px/1 var(--slab); letter-spacing: .22em; text-transform: uppercase; }
+
+  /* ---------- 2. gazette ---------- */
+
+  .newsprint {
+    padding: 16px 20px 18px;
+    background:
+      radial-gradient(circle at 80% 30%, rgb(150 105 50 / .10), transparent 10%),
+      radial-gradient(circle at 20% 75%, rgb(150 105 50 / .08), transparent 12%),
+      var(--grain),
+      var(--news);
+    box-shadow: inset 0 0 30px rgb(120 85 40 / .2);
+  }
+  .gz-paper { font: 400 27px/1 var(--fat); text-align: center; letter-spacing: .01em; }
+  .gz-line {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 7px;
+    padding: 3px 0;
+    border-block: 1px solid var(--ink);
+    font: 400 10.5px/1 var(--fell-sc);
+    letter-spacing: .08em;
+  }
+  .gz-head { margin-top: 12px; text-align: center; font: 400 17px/1 var(--fell-sc); letter-spacing: .06em; }
+  .gz-short { width: 60px; height: 1px; margin: 8px auto; background: var(--ink); }
+  .gz-body { font: 400 13.6px/1.4 var(--fell); text-align: justify; hyphens: auto; }
+  .gz-body p + p { text-indent: 1.2em; }
+  .gz-body .first::first-letter { float: left; margin: 3px 5px 0 0; font: 400 41px/.8 var(--fat); }
+  .gz-body .first::first-line { font-family: var(--fell-sc); letter-spacing: .03em; }
+  .gz-lost { font: 400 13px/1.4 var(--fell); text-align: justify; }
+  .gz-lost b { font: 400 11px/1 var(--slab); letter-spacing: .1em; text-transform: uppercase; }
+  .tape {
+    position: absolute;
+    width: 110px;
+    height: 30px;
+    background: linear-gradient(90deg, rgb(240 232 210 / .55), rgb(250 245 230 / .7), rgb(240 232 210 / .55));
+    box-shadow: 0 1px 2px rgb(0 0 0 / .25);
+    clip-path: polygon(0 8%, 4% 0, 9% 10%, 14% 0, 100% 4%, 97% 50%, 100% 96%, 92% 100%, 86% 92%, 80% 100%, 0 96%, 3% 50%);
+  }
+
+  /* ---------- 3. characters ---------- */
+
+  .ch-plate { align-self: flex-end; font: italic 400 13px/1 var(--fell); }
+  .ch-head { font: 400 64px/.9 var(--gothic); letter-spacing: .12em; text-transform: uppercase; margin-right: -.12em; }
+  .ch-in { margin-top: 4px; font: italic 400 19px/1.1 var(--fell); }
+  .ch-in .red { font: 400 19px/1 var(--slab); letter-spacing: .04em; text-transform: uppercase; }
+  .cast { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; width: 100%; margin: 6px 0 2px; }
+  .cast figure { margin: 0; display: grid; justify-items: center; gap: 4px; }
+  /* The dotted line you cut along. */
+  .cut { width: 100%; height: 178px; display: grid; place-items: end center; padding: 8px 0 6px; border: 1.2px dashed var(--ink); border-radius: 2px; }
+  .cut :global(svg) { height: 160px; width: auto; }
+  .cast figcaption { font: 400 12.5px/1.2 var(--fell); }
+  .ch-penny { display: flex; justify-content: center; gap: 22px; font: 400 15px/1 var(--slab); letter-spacing: .12em; text-transform: uppercase; }
+  .ch-fine { margin-top: auto; font: italic 400 12.5px/1.2 var(--fell); }
+
+  /* Ambrose printed on the sheet, not stuck on it: no paper edge, no shadow. */
+  .sheet :global(.ambrose > g) { filter: none; }
+  .sheet :global(.ambrose .edge) { display: none; }
+
+  /* ---------- 4. handbill ---------- */
+
+  .hb-border { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .hb-star { position: absolute; left: 50%; top: 142px; width: 320px; translate: -50% 0; }
+  .hb-star svg { position: absolute; inset: 0; width: 100%; height: auto; overflow: visible; }
+  .hb-star svg:first-child { position: relative; }
+  /* Her pink, brushed into the printed star: a touch outside the line, as hand-colouring is. */
+  .wash-fill { fill: var(--pink); stroke: #E79AAD; stroke-width: 3; opacity: .92; mix-blend-mode: multiply; }
+  .hb-text { position: relative; padding: 42px 26px 34px; }
+  .hb-announce { font: italic 400 15px/1.2 var(--fell); max-width: 15em; }
+  .hb-starring { margin-top: 10px; font: 400 40px/1 var(--gothic); letter-spacing: .3em; margin-right: -.3em; text-transform: uppercase; }
+  /* Centred on the star's middle: 142px down the sheet, plus 152/290 of its 320px-wide box,
+     less the sheet's padding (this block sits inside it) and half the block's own height. */
+  .hb-billed { position: absolute; left: 0; right: 0; top: calc(142px + 320px * 152 / 290 - 20px - 48px); }
+  .hb-name { font: 400 72px/1 var(--fat); letter-spacing: -.01em; }
+  .hb-after { position: absolute; left: 0; right: 0; top: calc(142px + 320px * 292 / 290 - 20px + 14px); font: italic 400 22px/1.1 var(--fell); }
+  .hb-note { margin-top: auto; font: 400 11px/1 var(--fell-sc); letter-spacing: .12em; }
+
+  /* ---------- 5. ticket ---------- */
+
+  /* Tickets were printed on coloured card; this one is on hers. */
+  .pasteboard {
+    padding: 0;
+    background:
+      radial-gradient(circle at 20% 70%, rgb(150 80 70 / .10), transparent 14%),
+      var(--grain),
+      var(--pink);
+    box-shadow: inset 0 0 26px rgb(120 50 50 / .22);
+  }
+  .tk { display: grid; grid-template-columns: minmax(0, 1fr) 156px; height: 100%; }
+  .tk-main {
+    position: relative;
+    margin: 12px 0 12px 12px;
+    padding: 16px 16px 12px;
+    border: 1.5px solid var(--ink);
+    outline: .8px solid var(--ink);
+    outline-offset: -5px;
+    text-align: center;
+  }
+  .tk-house { font: 400 15px/1 var(--gothic); letter-spacing: .2em; text-transform: uppercase; }
+  .tk-admit { margin-top: 8px; font: 400 40px/1 var(--fat); }
+  .tk-to { margin-top: 2px; font: italic 400 14px/1.2 var(--fell); }
+  .tk-show { margin-top: 10px; font: 400 26px/1 var(--gothic); letter-spacing: .08em; text-transform: uppercase; }
+  .tk-when { margin-top: 6px; font: 400 12px/1 var(--fell-sc); letter-spacing: .06em; }
+  .tk-no { position: absolute; inset: auto 14px 12px auto; font: 400 11px/1 var(--slab); letter-spacing: .06em; }
+  /* The stub, behind a line of perforations. */
+  .tk-stub {
+    position: relative;
+    display: grid;
+    place-items: center;
+    align-content: center;
+    gap: 8px;
+    background: radial-gradient(circle, #1A1512 0 2.6px, transparent 3px) 0 4px / 8px 11px repeat-y;
+  }
+  .qr { position: relative; width: 120px; height: 120px; padding: 7px; background: #F3ECDD; }
+  .qr :global(svg) { display: block; width: 100%; height: 100%; }
+  .qr--todo { display: grid; place-items: center; }
+  .qr--todo svg { position: absolute; inset: 7px; width: calc(100% - 14px); height: calc(100% - 14px); }
+  .stamp {
+    position: relative;
+    rotate: -8deg;
+    padding: 4px 6px;
+    border: 2px solid var(--cherry);
+    background: #F3ECDD;
+    color: var(--cherry);
+    font: 700 9px/1 var(--label);
+    letter-spacing: .2em;
+    text-transform: uppercase;
+  }
+  .tk-scan { font: 400 11px/1 var(--slab); letter-spacing: .12em; text-transform: uppercase; }
+
+  /* ---------- the modern layer ---------- */
+
+  .bg-ivory { background: var(--grain), #F0E9D9; --fg: #171717; --accent: var(--cherry); }
+  .bg-cherry { background: var(--grain), var(--cherry); --fg: #F0E9D9; --accent: var(--pink); }
+  .bg-pink { background: var(--grain), var(--pink); --fg: #641522; --accent: #641522; }
+  .slide[class*='bg-'] .lift { filter: drop-shadow(0 12px 18px rgb(40 15 10 / .32)) drop-shadow(0 1px 2px rgb(40 15 10 / .35)); }
+
+  .frame, .big, .label, .note, .foot, .lead, .side, .st-kicker { position: absolute; z-index: 2; }
+  .frame {
+    inset: 22px 28px auto;
+    display: flex;
+    justify-content: space-between;
+    font: 600 10.5px/1 var(--label);
+    letter-spacing: .2em;
+    text-transform: uppercase;
+    color: var(--fg);
+    opacity: .78;
+  }
+  .big {
+    margin: 0;
+    font: 600 56px/.98 'Fraunces Variable', Georgia, serif;
+    font-variation-settings: 'opsz' 72, 'SOFT' 60;
+    letter-spacing: -.02em;
+    color: var(--fg);
+  }
+  .label { position: static; font: 600 11px/1.2 var(--label); letter-spacing: .22em; text-transform: uppercase; color: var(--accent); }
+  .note { position: static; margin-top: 12px; font: 500 14px/1.4 var(--label); color: var(--fg); opacity: .85; }
+  .voice-i { font: italic 480 20px/1.25 'Fraunces Variable', Georgia, serif; font-variation-settings: 'opsz' 28, 'SOFT' 80, 'WONK' 1; color: var(--fg); }
+  .foot { left: 28px; right: 28px; bottom: 28px; display: grid; gap: 10px; }
+  .foot .big { position: static; }
+
+  .cover-title { left: 26px; top: 58px; font-size: 92px; line-height: .9; }
+  .bg-cherry .foot { right: auto; width: 200px; }
+  .side { left: 28px; top: 132px; width: 190px; }
+  .side .big { position: static; font-size: 44px; }
+  .side .note { font-size: 15px; }
+  .lead { left: 28px; right: 28px; top: 70px; }
+  .lead .big { position: static; margin-top: 10px; font-size: 64px; }
+  .lead .note { max-width: 15rem; }
+  .ch-host { position: absolute; z-index: 3; right: 30px; bottom: 26px; width: 190px; }
+  .ch-host :global(svg) { width: 100%; height: auto; }
+  .st-kicker { position: absolute; left: 28px; top: 70px; }
+  .st-name { left: 22px; bottom: 26px; font-size: 156px; line-height: .8; color: var(--cherry); }
+  .voice-i span { font-style: normal; font: 600 11px/1 var(--label); letter-spacing: .2em; text-transform: uppercase; color: var(--accent); }
+  .date { font: 600 22px/1.15 'Fraunces Variable', Georgia, serif; color: #F0E9D9; }
+  .tk-big { left: 26px; top: 64px; font-size: 76px; max-width: 6em; }
+  .tk-what { font: 600 19px/1.3 var(--label); color: var(--fg); max-width: 18em; }
+</style>

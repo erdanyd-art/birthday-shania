@@ -5,7 +5,14 @@ import '@fontsource-variable/newsreader/standard.css';
 import '@fontsource-variable/newsreader/standard-italic.css';
 import '@fontsource-variable/instrument-sans/standard.css';
 import '../styles/global.css';
+// The display face is on every first screen; fetch it straight away so phones on mobile data
+// don't flash a fallback font. Same files the CSS above uses, so nothing downloads twice.
+import frauncesRoman from '@fontsource-variable/fraunces/files/fraunces-latin-full-normal.woff2?url';
+import frauncesItalic from '@fontsource-variable/fraunces/files/fraunces-latin-full-italic.woff2?url';
+import { ClientRouter } from 'astro:transitions';
 import Chrome from '../components/Chrome.astro';
+import TourBar from '../components/TourBar.astro';
+import { route, tour, type StopId } from '../lib/rooms';
 import { site } from '../../content/site';
 import { assertLaunchReady, isPreviewBuild } from '../lib/content';
 
@@ -17,13 +24,17 @@ interface Props {
   /** The box office hides the header for a clean first impression. */
   chrome?: boolean;
   current?: 'house';
+  /** Which tour stop this room is, for the bar under the header. */
+  stop?: StopId;
 }
 
-const { title, tone = 'paper', chrome = true, current } = Astro.props;
+const { title, tone = 'paper', chrome = true, current, stop } = Astro.props;
 
 assertLaunchReady();
 
 const pageTitle = title ? `${title} · ${site.title}` : site.title;
+// Link previews need an absolute address: set SITE_URL when deploying.
+const preview = new URL('/og.png', Astro.site ?? Astro.url).href;
 ---
 
 <!doctype html>
@@ -38,17 +49,99 @@ const pageTitle = title ? `${title} · ${site.title}` : site.title;
     <meta property="og:type" content="website" />
     <meta property="og:title" content={site.title} />
     <meta property="og:description" content={site.description} />
+    <meta property="og:image" content={preview} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content={`The front of a small paper theatre at night, with "${site.title}" on its sign.`} />
+    <meta name="twitter:card" content="summary_large_image" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="preload" as="font" type="font/woff2" href={frauncesRoman} crossorigin />
+    <link rel="preload" as="font" type="font/woff2" href={frauncesItalic} crossorigin />
+    <script is:inline define:vars={{ route, tour }}>
+      // Before the page paints.
+      // 1. The tour is walked in order: a guest who asks for a room further on than they've
+      //    reached (a typed address, an old link) is taken to where they are instead.
+      //    Same rule as furthest() in src/lib/progress.ts.
+      // 2. Which doors they've opened, so an open door never flashes its game.
+      // 3. data-free once the show is over: the map opens and every room can be revisited.
+      //    Also when the browser keeps no storage, so nobody is ever stuck at the door.
+      (function () {
+        var KEY = 'slw-progress-v2';
+        var root = document.documentElement;
+        var stored = true;
+        try { localStorage.setItem('slw-probe', '1'); localStorage.removeItem('slw-probe'); } catch (e) { stored = false; }
+        function read() { return JSON.parse(localStorage.getItem(KEY) || '{}'); }
+        function furthest(p) {
+          var visited = p.visited || [], done = p.done || [];
+          if (visited.indexOf('boxoffice') < 0) return 0;
+          if (!p.introSeen) return 1;
+          for (var i = 0; i < tour.length; i++) if (done.indexOf(tour[i]) < 0) return 2 + i;
+          return p.finaleSeen ? route.length - 1 : route.length - 2;
+        }
+        // Where to send someone asking for this address, or null if they may go there.
+        function redirect(url) {
+          if (!stored) return null;
+          try {
+            var at = route.indexOf(url.pathname.replace(/\/+$/, '') || '/');
+            var reach = furthest(read());
+            return at > reach ? route[reach] : null;
+          } catch (e) { return null; }
+        }
+        function mark() {
+          root.setAttribute('data-js', '');
+          if (!stored) { root.setAttribute('data-free', ''); return; }
+          try {
+            var p = read();
+            root.setAttribute('data-unlocked', (p.unlocked || []).join(' '));
+            root.toggleAttribute('data-free', furthest(p) === route.length - 1);
+          } catch (e) {}
+        }
+        var instead = redirect(location);
+        if (instead) { location.replace(instead); return; }
+        mark();
+        document.addEventListener('astro:after-swap', mark);
+        document.addEventListener('astro:before-preparation', function (e) {
+          var to = redirect(e.to);
+          if (to) e.to = new URL(to, location.href);
+        });
+      })();
+    </script>
+    <!-- Without JavaScript there are no games: every room is simply open. -->
+    <noscript><style>[data-gate] { display: none !important; } [data-gated-room] { display: block !important; }</style></noscript>
+    <!-- One document for the whole visit: rooms swap in place, so the music keeps playing. -->
+    <ClientRouter />
   </head>
   <body>
     <a class="skip" href="#main">Skip to content</a>
     {chrome && <Chrome current={current} />}
-    <main id="main">
+    {stop && <TourBar current={stop} />}
+    <!-- Each room slides in like a painted flat; going back slides the other way. -->
+    <main id="main" transition:animate="slide">
       <slot />
     </main>
     {isPreviewBuild && <p class="preview-badge">Preview build · placeholders shown</p>}
   </body>
 </html>
+
+<script>
+  import { onPage } from '../lib/page';
+  import { musicPlaying, setMusicLevel, soundOn, startMusic } from '../lib/sound';
+
+  // Each room sets how loud the music sits (the Wings play it quietly).
+  onPage(() => {
+    const room = document.querySelector<HTMLElement>('[data-music-level]');
+    setMusicLevel(Number(room?.dataset.musicLevel ?? 1));
+  });
+
+  // Guests who arrive straight in a room, or after a refresh: their first tap starts the music.
+  // At the entrance the ticket does it, and a tap on the switch itself is left to the switch.
+  document.addEventListener('pointerdown', (e) => {
+    if (!soundOn() || musicPlaying()) return;
+    const target = e.target as Element;
+    if (target.closest('[data-sound]') || document.querySelector('[data-ticket]:not(.is-torn)')) return;
+    startMusic();
+  });
+</script>
 
 <style>
   /* A strip at the foot of every page, so a preview can never pass for the real thing. */

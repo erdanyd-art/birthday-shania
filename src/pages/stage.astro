@@ -1,134 +1,115 @@
 ---
-// Scene I: Enter the Host. In front of the closed curtain.
+// Scene I: Enter the Host. Ambrose in front of the closed curtain, with a little
+// stage business on each card (a bow, a wobbling shoe, a twitch of the curtain).
 import Base from '../layouts/Base.astro';
 import Ambrose from '../components/Ambrose.astro';
 import CueCards from '../components/CueCards.astro';
+import StageSet from '../components/StageSet.astro';
 import { lines } from '../../content/host';
 import { site } from '../../content/site';
+import { rooms, tour } from '../lib/rooms';
+
+const firstRoom = rooms[tour[0]!];
 ---
 
 <Base title="Enter the Host" tone="night">
-  <section class="stage" aria-labelledby="stage-h">
-    <h1 id="stage-h" class="visually-hidden">Enter the Host</h1>
-    <div class="curtain" aria-hidden="true"></div>
-    <div class="valance" aria-hidden="true"></div>
-    <div class="host" data-host><Ambrose /></div>
-    <div class="apron">
-      <div class="footlights" aria-hidden="true"></div>
-      <div class="cards" data-intro>
-        <CueCards lines={lines.intro} doneLabel="To the house" doneHref="/house" skipHref="/house" />
-      </div>
-      <div class="cards" data-return hidden>
-        <CueCards lines={lines.stageReturn} doneLabel="Back to the house" doneHref="/house" />
-        <button type="button" class="btn ghost replay" data-replay>Hear {site.host}’s introduction again</button>
-      </div>
+  <h1 class="visually-hidden">Enter the Host</h1>
+  <StageSet>
+    <Ambrose slot="host" pose={lines.intro[0]!.pose} />
+    <div class="cards" data-intro>
+      <CueCards cues={lines.intro} doneLabel="Follow me" doneHref={firstRoom.href} skipHref={firstRoom.href} />
     </div>
-  </section>
+    <div class="cards" data-return data-after-line={lines.stageAfter} hidden>
+      <CueCards cues={[{ say: lines.stageReturn, pose: 'point' }]} doneLabel="Back to the tour" doneHref={firstRoom.href} />
+      <button type="button" class="btn ghost replay" data-replay>Hear {site.host}’s introduction again</button>
+    </div>
+  </StageSet>
 </Base>
 
 <script>
-  import { markIntroSeen, readProgress } from '../lib/progress';
+  import { navigate } from 'astro:transitions/client';
+  import type { Cue, Pose } from '../../content/types';
+  import { markIntroSeen, readProgress, resumeHref, tourFinished } from '../lib/progress';
   import { reducedMotion } from '../lib/motion';
+  import { later, onPage } from '../lib/page';
+  import { play } from '../lib/sound';
 
-  const intro = document.querySelector<HTMLElement>('[data-intro]')!;
-  const back = document.querySelector<HTMLElement>('[data-return]')!;
-  const host = document.querySelector<HTMLElement>('[data-host]')!;
+  onPage((signal) => {
+    const intro = document.querySelector<HTMLElement>('[data-intro]');
+    if (!intro) return;
+    const stage = document.querySelector<HTMLElement>('[data-stage]')!;
+    const host = document.querySelector<HTMLElement>('[data-host]')!;
+    const ambrose = host.querySelector<SVGElement>('[data-ambrose]')!;
+    const back = document.querySelector<HTMLElement>('[data-return]')!;
+    const progress = readProgress();
 
-  if (readProgress().introSeen) {
-    intro.hidden = true;
-    back.hidden = false;
-    host.classList.add('is-here');
-  }
+    if (progress.introSeen) {
+      intro.hidden = true;
+      back.hidden = false;
+      host.classList.add('is-here');
+      // Pick the tour up where this guest left it; after the show, back to the house.
+      const cues = back.querySelector<HTMLElement>('[data-cues]')!;
+      cues.dataset.doneHref = resumeHref(progress);
+      if (tourFinished(progress)) {
+        cues.querySelector('[data-line]')!.textContent = back.dataset.afterLine ?? '';
+        cues.querySelector('[data-next]')!.textContent = 'Back to the house';
+      }
+    }
 
-  intro.addEventListener('cues:done', markIntroSeen);
-  intro.addEventListener('cues:skip', markIntroSeen);
+    // His chime once he has walked on (or straight away if he's already there).
+    later(signal, progress.introSeen ? 300 : 1200, () => play('host'));
 
-  // A small paper wobble each time he changes cards, like a toy-theatre figure being handled.
-  document.addEventListener('cues:line', () => {
-    if (reducedMotion()) return;
-    host.animate(
-      [{ rotate: '0deg' }, { rotate: '-2.5deg' }, { rotate: '1.4deg' }, { rotate: '0deg' }],
-      { duration: 460, easing: 'ease-in-out' },
-    );
-  });
+    const flash = (el: Element, cls: string, ms: number) => {
+      el.classList.add(cls);
+      later(signal, ms, () => el.classList.remove(cls));
+    };
 
-  document.querySelector('[data-replay]')!.addEventListener('click', () => {
-    back.hidden = true;
-    intro.hidden = false;
-    intro.querySelector('[data-cues]')!.dispatchEvent(new Event('cues:restart'));
+    let straighten = 0;
+    signal.addEventListener('abort', () => window.clearTimeout(straighten));
+    const strike = (pose: Pose) => {
+      window.clearTimeout(straighten);
+      ambrose.dataset.pose = pose;
+      // A bow is a moment, not a stance.
+      if (pose === 'bow') straighten = window.setTimeout(() => { ambrose.dataset.pose = 'welcome'; }, 1100);
+    };
+
+    // His stage business for each card.
+    document.addEventListener('cues:line', (e) => {
+      const { cue } = (e as CustomEvent<{ cue: Cue }>).detail;
+      if (cue.pose) strike(cue.pose);
+      if (reducedMotion()) return;
+      if (cue.action === 'shoe') later(signal, 900, () => flash(ambrose, 'is-shoe', 800));
+      if (cue.action === 'curtain') later(signal, 700, () => flash(stage, 'is-twitch', 1000));
+      host.animate([{ rotate: '0deg' }, { rotate: '-2.5deg' }, { rotate: '1.4deg' }, { rotate: '0deg' }], {
+        duration: 460,
+        easing: 'ease-in-out',
+      });
+    }, { signal });
+
+    // "Follow me": he walks off into the wings before the next room appears.
+    const exit = (e: Event) => {
+      markIntroSeen();
+      if (reducedMotion()) return;
+      e.preventDefault();
+      const href = (e.target as HTMLElement).dataset.doneHref ?? '/house';
+      strike('point');
+      host.classList.add('is-leaving');
+      later(signal, 520, () => void navigate(href));
+    };
+    intro.addEventListener('cues:done', exit, { signal });
+    intro.addEventListener('cues:skip', exit, { signal });
+
+    document.querySelector('[data-replay]')!.addEventListener('click', () => {
+      back.hidden = true;
+      intro.hidden = false;
+      intro.querySelector('[data-cues]')!.dispatchEvent(new Event('cues:restart'));
+    }, { signal });
   });
 </script>
 
 <style>
-  .stage {
-    position: relative;
-    overflow: hidden;
-    min-height: calc(100dvh - var(--chrome-h) - env(safe-area-inset-top, 0px));
-    display: grid;
-    grid-template-rows: minmax(14rem, 1fr) auto;
-  }
-  .curtain {
-    position: absolute;
-    inset: 0;
-    background: repeating-linear-gradient(
-      90deg,
-      var(--deep) 0 14px,
-      color-mix(in srgb, var(--deep) 68%, var(--cherry)) 26px,
-      var(--deep) 38px
-    );
-  }
-  .curtain::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(to bottom, transparent 55%, color-mix(in srgb, var(--ink) 38%, transparent));
-  }
-  .valance {
-    position: absolute;
-    inset: 0 0 auto;
-    height: 2.6rem;
-    z-index: 1;
-    background: radial-gradient(circle at 50% 0, var(--cherry) 69%, transparent 71%) 0 0 / 3.2rem 2.6rem repeat-x;
-  }
-  .host {
-    position: relative;
-    z-index: 2;
-    align-self: end;
-    justify-self: center;
-    width: min(58vw, 17rem, 40dvh);
-    margin-bottom: -.3rem;
-    transform-origin: 50% 100%;
-    animation: enter 1.05s var(--ease-arrive) .25s both;
-  }
-  .host.is-here { animation: none; }
-  @keyframes enter {
-    from { translate: -110vw 0; }
-    to { translate: 0 0; }
-  }
-
-  .apron {
-    position: relative;
-    z-index: 3;
-    display: grid;
-    justify-items: center;
-    gap: .9rem;
-    background:
-      repeating-linear-gradient(90deg, transparent 0 5.5rem, color-mix(in srgb, var(--ink) 10%, transparent) 5.5rem calc(5.5rem + 1px)),
-      var(--card);
-    border-top: 2px solid var(--ink);
-    padding: 1.5rem var(--gutter-r) calc(1.5rem + env(safe-area-inset-bottom, 0px)) var(--gutter-l);
-  }
-  /* A row of footlights set into the lip of the stage, in front of the host. */
-  .footlights {
-    position: absolute;
-    left: 0;
-    right: 0;
-    top: 0;
-    height: 8px;
-    background: radial-gradient(circle at 50% 0, var(--edge) 0 3.5px, var(--ink) 4px 5px, transparent 5.5px) 1.4rem 0 / 2.8rem 8px repeat-x;
-  }
   .cards { display: grid; justify-items: center; gap: .8rem; width: 100%; }
   .cards > :global(.cues) { width: 100%; }
   /* The apron is card, not curtain, so its ghost button keeps cherry ink. */
-  :global(html[data-tone='night']) .apron .replay { color: var(--cherry); }
+  :global(html[data-tone='night']) .cards .replay { color: var(--cherry); }
 </style>

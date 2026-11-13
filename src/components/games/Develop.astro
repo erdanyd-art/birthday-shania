@@ -1,0 +1,160 @@
+---
+// Door 1: develop the photograph. The print starts dark; rubbing it with a finger (or the
+// mouse) clears the developer and her childhood photo appears. About half rubbed = done.
+import type { ImageMetadata } from 'astro';
+import { Picture } from 'astro:assets';
+
+interface Props {
+  image: ImageMetadata | null;
+  alt: string | null;
+}
+
+const { image, alt } = Astro.props;
+---
+
+<div class="develop" data-game="develop">
+  <div class="print">
+    <div class="photo">
+      {image && alt ? (
+        <Picture src={image} alt={alt} widths={[320, 480, 640]} sizes="18rem" formats={['avif', 'webp']} />
+      ) : (
+        <div class="stand-in" role="img" aria-label="Placeholder for the childhood photo">
+          <span>Then</span>
+        </div>
+      )}
+      <canvas data-tray aria-hidden="true"></canvas>
+    </div>
+  </div>
+  <p class="hint" data-hint>Rub the print with your finger</p>
+  <div class="meter" aria-hidden="true"><span data-meter></span></div>
+</div>
+
+<script>
+  import { onPage } from '../../lib/page';
+  import { play } from '../../lib/sound';
+
+  onPage((signal) => {
+    const root = document.querySelector<HTMLElement>('[data-game="develop"]');
+    if (!root) return;
+    const canvas = root.querySelector<HTMLCanvasElement>('[data-tray]')!;
+    const meter = root.querySelector<HTMLElement>('[data-meter]')!;
+    const hint = root.querySelector<HTMLElement>('[data-hint]')!;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true })!;
+    let done = false;
+    let strokes = 0;
+    let last: { x: number; y: number } | null = null;
+
+    // Paint the unexposed print: dark developer, a little grain.
+    const paint = () => {
+      const rect = canvas.getBoundingClientRect();
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      canvas.width = Math.max(1, Math.round(rect.width * dpr));
+      canvas.height = Math.max(1, Math.round(rect.height * dpr));
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.globalCompositeOperation = 'source-over';
+      const g = ctx.createLinearGradient(0, 0, rect.width, rect.height);
+      g.addColorStop(0, '#3a2a24');
+      g.addColorStop(1, '#1f1714');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, rect.width, rect.height);
+      for (let i = 0; i < 900; i++) {
+        ctx.fillStyle = `rgba(240,233,217,${Math.random() * 0.05})`;
+        ctx.fillRect(Math.random() * rect.width, Math.random() * rect.height, 1.5, 1.5);
+      }
+    };
+    paint();
+
+    const cleared = () => {
+      const { width, height } = canvas;
+      const data = ctx.getImageData(0, 0, width, height).data;
+      let clear = 0;
+      let total = 0;
+      for (let i = 3; i < data.length; i += 4 * 24) {
+        total += 1;
+        if (data[i]! < 40) clear += 1;
+      }
+      return clear / total;
+    };
+
+    const rub = (x: number, y: number) => {
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.lineCap = 'round';
+      ctx.lineWidth = 46;
+      ctx.beginPath();
+      ctx.moveTo(last?.x ?? x, last?.y ?? y);
+      ctx.lineTo(x, y);
+      ctx.stroke();
+      last = { x, y };
+      strokes += 1;
+      if (strokes % 6 === 0) {
+        const amount = cleared();
+        meter.style.width = `${Math.min(100, (amount / 0.55) * 100)}%`;
+        if (strokes % 30 === 0) play('paper');
+        if (amount >= 0.55) finish();
+      }
+    };
+
+    const finish = () => {
+      if (done) return;
+      done = true;
+      meter.style.width = '100%';
+      hint.textContent = 'There she is.';
+      canvas.classList.add('is-clear');
+      root.dispatchEvent(new CustomEvent('game:won', { bubbles: true }));
+    };
+
+    const at = (e: PointerEvent) => {
+      const r = canvas.getBoundingClientRect();
+      return { x: e.clientX - r.left, y: e.clientY - r.top };
+    };
+    canvas.addEventListener('pointerdown', (e) => {
+      if (done) return;
+      canvas.setPointerCapture(e.pointerId);
+      last = null;
+      const p = at(e);
+      rub(p.x, p.y);
+    }, { signal });
+    canvas.addEventListener('pointermove', (e) => {
+      if (done || !canvas.hasPointerCapture(e.pointerId)) return;
+      const p = at(e);
+      rub(p.x, p.y);
+    }, { signal });
+    canvas.addEventListener('pointerup', () => { last = null; }, { signal });
+  });
+</script>
+
+<style>
+  .develop { display: grid; gap: .8rem; justify-items: center; width: 100%; }
+  .print {
+    width: min(78vw, 17rem);
+    padding: .7rem .7rem 1.8rem;
+    background: var(--edge);
+    rotate: -1.5deg;
+    box-shadow: 0 12px 24px color-mix(in srgb, var(--ink) 22%, transparent);
+  }
+  .photo { position: relative; aspect-ratio: 4 / 5; overflow: hidden; background: var(--card); }
+  .photo :global(img) { width: 100%; height: 100%; object-fit: cover; }
+  .stand-in {
+    height: 100%;
+    display: grid;
+    place-items: center;
+    background:
+      repeating-linear-gradient(45deg, color-mix(in srgb, var(--ink) 12%, transparent) 0 1px, transparent 1px 7px),
+      var(--card);
+    font: italic 500 1.6rem/1 var(--font-display);
+    color: var(--ink-2);
+  }
+  canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    touch-action: none;
+    cursor: grab;
+    transition: opacity .8s ease;
+  }
+  canvas:global(.is-clear) { opacity: 0; pointer-events: none; }
+  .hint { font: italic 480 1.1rem/1.3 var(--font-display); }
+  .meter { width: min(78vw, 17rem); height: 6px; border: 1px solid currentColor; border-radius: 999px; overflow: hidden; }
+  .meter span { display: block; width: 0; height: 100%; background: var(--cherry); transition: width .2s ease; }
+</style>

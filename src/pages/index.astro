@@ -1,8 +1,10 @@
 ---
 // Overture: The Box Office. The first impression, and the way in.
 import Base from '../layouts/Base.astro';
+import Ambrose from '../components/Ambrose.astro';
 import Facade from '../components/Facade.astro';
 import HouseMap from '../components/HouseMap.astro';
+import SoundToggle from '../components/SoundToggle.astro';
 import Ticket from '../components/Ticket.astro';
 import { lines } from '../../content/host';
 import { site } from '../../content/site';
@@ -10,55 +12,68 @@ import { site } from '../../content/site';
 
 <Base chrome={false}>
   <div class="boxoffice">
+    <SoundToggle class="entrance-sound" labelled />
     <div class="copy">
       <h1 class="visually-hidden">{site.title}</h1>
       <p class="kicker">Opening night · {site.openingNight.label}</p>
       <p class="voice offstage">“{lines.boxOffice}”</p>
+      <p class="by">Your host, waiting by the door</p>
     </div>
 
     <div class="theatre" data-theatre>
       <div class="frame">
         <HouseMap />
         <div class="front"><Facade /></div>
+        <div class="greeter"><Ambrose wire={false} decorative /></div>
       </div>
     </div>
 
     <div class="way-in">
       <Ticket />
-      <a class="returning" href="/house" data-returning hidden>Or go straight to the house</a>
+      <a class="returning" href="/house" data-returning hidden>Or pick up where you left off</a>
     </div>
   </div>
 </Base>
 
 <script>
-  import { markVisited, readProgress } from '../lib/progress';
+  import { navigate } from 'astro:transitions/client';
+  import { markVisited, readProgress, resumeHref, tourFinished } from '../lib/progress';
   import { reducedMotion, wait } from '../lib/motion';
+  import { onPage } from '../lib/page';
 
-  const theatre = document.querySelector<HTMLElement>('[data-theatre]')!;
-  const returning = document.querySelector<HTMLElement>('[data-returning]')!;
-  const seen = readProgress();
-  if (seen.introSeen || seen.visited.length) returning.hidden = false;
-
-  document.addEventListener('ticket:torn', async () => {
-    markVisited('boxoffice');
-    const firstVisit = !readProgress().introSeen;
-    const next = firstVisit ? '/stage' : '/house';
-    if (reducedMotion()) {
-      window.location.href = next;
-      return;
+  onPage((signal) => {
+    const theatre = document.querySelector<HTMLElement>('[data-theatre]');
+    if (!theatre) return;
+    const returning = document.querySelector<HTMLElement>('[data-returning]')!;
+    const seen = readProgress();
+    // Guests coming back: straight to the house once they've seen the show, else to where they were.
+    if (seen.introSeen) {
+      returning.hidden = false;
+      returning.setAttribute('href', resumeHref(seen));
+      if (tourFinished(seen)) returning.textContent = 'Or go straight to the house';
     }
-    await wait(280);
-    theatre.classList.add('is-open');
-    await wait(firstVisit ? 1050 : 950);
-    if (firstVisit) {
-      theatre.classList.add('is-entering');
-      await wait(500);
-    }
-    window.location.href = next;
-  });
 
-  window.addEventListener('pageshow', (e) => {
-    if (e.persisted) theatre.classList.remove('is-open', 'is-entering');
+    document.addEventListener('ticket:torn', async () => {
+      markVisited('boxoffice');
+      const progress = readProgress();
+      const firstVisit = !progress.introSeen;
+      // The ticket always leads on: to the host the first time, then to wherever the tour is up to.
+      const next = firstVisit ? '/stage' : resumeHref(progress);
+      if (reducedMotion()) {
+        void navigate(next);
+        return;
+      }
+      // Ambrose goes in first, then the front of the theatre swings open.
+      theatre.classList.add('is-going');
+      await wait(420);
+      theatre.classList.add('is-open');
+      await wait(firstVisit ? 1050 : 950);
+      if (firstVisit) {
+        theatre.classList.add('is-entering');
+        await wait(500);
+      }
+      if (!signal.aborted) void navigate(next);
+    }, { signal });
   });
 </script>
 
@@ -75,7 +90,14 @@ import { site } from '../../content/site';
     padding-left: var(--gutter-l);
     padding-right: var(--gutter-r);
   }
-  .copy { display: grid; gap: .7rem; }
+  .boxoffice { position: relative; }
+  .boxoffice > :global(.entrance-sound) {
+    position: absolute;
+    top: calc(env(safe-area-inset-top, 0px) + .6rem);
+    right: var(--gutter-r);
+    color: var(--ink-2);
+  }
+  .copy { display: grid; gap: .7rem; padding-right: 2.5rem; }
   .offstage { font-size: clamp(1.6rem, 6.6vw, 3rem); max-width: 14em; }
 
   .theatre {
@@ -105,16 +127,51 @@ import { site } from '../../content/site';
   }
   .is-entering .frame { transform: scale(2.6); opacity: 0; }
 
+  .by {
+    font: 600 .72rem/1.3 var(--font-ui);
+    font-stretch: 78%;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: var(--ink-2);
+  }
+
+  /* Ambrose on the pavement beside the steps, facing the door. */
+  .frame > .greeter {
+    inset: auto;
+    left: 67%;
+    bottom: 3.2%;
+    width: 21%;
+    transition: translate var(--dur-move) var(--ease-paper), opacity var(--dur-move) ease;
+    /* backwards, not both: once he's arrived, the exit transition must be free to move him. */
+    animation: arrive .8s var(--ease-arrive) .5s backwards;
+  }
+  .greeter :global(svg) { width: 100%; height: auto; scale: -1 1; }
+  @keyframes arrive {
+    from { translate: 2.5rem 0; opacity: 0; }
+    to { translate: 0 0; opacity: 1; }
+  }
+  .is-going .greeter { translate: -4rem 0; opacity: 0; }
+
   .way-in { display: grid; gap: 1rem; justify-items: start; }
   .returning {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
     font: 600 .78rem/1.2 var(--font-ui);
     letter-spacing: .06em;
     color: var(--cherry);
     text-underline-offset: .25em;
-    padding-block: .6rem;
   }
 
-  @media (min-width: 900px) {
+  /* Short phones (iPhone SE and friends): the ticket and its button stay on the first screen. */
+  @media (max-width: 899px) and (max-height: 760px) {
+    .boxoffice { grid-template-rows: auto minmax(10.5rem, 1fr) auto; gap: .8rem; }
+    .copy { gap: .45rem; }
+    .offstage { font-size: clamp(1.4rem, 5.8vw, 1.9rem); }
+  }
+
+  /* Wide screens, and phones held sideways: theatre on the right, ticket on the left. */
+  @media (min-width: 900px), (orientation: landscape) and (max-height: 540px) {
     .boxoffice {
       grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
       grid-template-rows: 1fr auto auto 1fr;
@@ -125,5 +182,16 @@ import { site } from '../../content/site';
     .way-in { grid-column: 1; grid-row: 3; margin-top: 1.5rem; }
     .theatre { grid-column: 2; grid-row: 1 / -1; }
     .frame { max-height: 86dvh; }
+  }
+  @media (orientation: landscape) and (max-height: 540px) {
+    .boxoffice {
+      column-gap: 2rem;
+      padding-top: calc(env(safe-area-inset-top, 0px) + .75rem);
+      padding-bottom: calc(env(safe-area-inset-bottom, 0px) + .75rem);
+    }
+    .copy { gap: .4rem; }
+    .offstage { font-size: 1.3rem; }
+    .by { display: none; }
+    .way-in { margin-top: .25rem; gap: .5rem; }
   }
 </style>

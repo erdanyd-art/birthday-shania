@@ -53,6 +53,9 @@ a { color: inherit; }
 button { font: inherit; color: inherit; }
 [hidden] { display: none !important; }
 
+/* Phones: no grey flash on tap, no double-tap zoom on controls; buttons give their own press feedback. */
+a, button, [role='button'] { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+
 :focus-visible { outline: 2px solid var(--cherry); outline-offset: 3px; }
 html[data-tone='night'] :focus-visible { outline-color: var(--paper); }
 
@@ -62,7 +65,8 @@ html[data-tone='night'] :focus-visible { outline-color: var(--paper); }
 }
 .skip {
   position: absolute; z-index: 50; left: var(--gutter-l); top: -4rem;
-  background: var(--ink); color: var(--paper); padding: .7rem 1rem;
+  display: inline-flex; align-items: center; min-height: 44px;
+  background: var(--ink); color: var(--paper); padding: 0 1rem;
   font: 600 .9rem/1 var(--font-ui); text-decoration: none;
 }
 .skip:focus { top: calc(env(safe-area-inset-top, 0px) + .5rem); }
@@ -109,6 +113,7 @@ html[data-tone='night'] .kicker { color: var(--pink); }
   transition: background-color var(--dur-quick) ease;
 }
 .btn:hover { background: var(--deep); }
+.btn:active { translate: 0 1px; }
 .btn:disabled { opacity: .55; cursor: default; }
 .btn.ghost { background: transparent; color: var(--cherry); box-shadow: inset 0 0 0 1.5px currentColor; }
 .btn.ghost:hover { background: color-mix(in srgb, var(--cherry) 8%, transparent); }
@@ -127,10 +132,17 @@ html[data-tone='night'] .btn.ghost:hover { background: color-mix(in srgb, var(--
 
 /* ---------- page transitions (progressive: plain loads where unsupported) ---------- */
 
-@view-transition { navigation: auto; }
-::view-transition-old(root),
-::view-transition-new(root) { animation-duration: 320ms; animation-timing-function: ease; }
-.chrome { view-transition-name: chrome; }
+/* Scene changes between rooms are Astro's router slides (see Base.astro). */
+
+/* Locked doors: a room's game shows until the guest opens it; then the room itself. */
+html:not([data-unlocked~='archive']) [data-gated-room='archive'],
+html:not([data-unlocked~='dressing']) [data-gated-room='dressing'],
+html:not([data-unlocked~='wings']) [data-gated-room='wings'],
+html:not([data-unlocked~='finale']) [data-gated-room='finale'],
+html[data-unlocked~='archive'] [data-gate='archive'],
+html[data-unlocked~='dressing'] [data-gate='dressing'],
+html[data-unlocked~='wings'] [data-gate='wings'],
+html[data-unlocked~='finale'] [data-gate='finale'] { display: none; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

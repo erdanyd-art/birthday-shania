@@ -11,3 +11,23 @@ export const rooms: Record<RoomId, Room> = {
 };
 
 export const stage = { name: 'The Stage', href: '/curtain-call', introHref: '/stage' };
+
+/** The tour, as the bar under the header shows it: four stops after the introduction. */
+export type StopId = 'archive' | 'dressing' | 'wings' | 'finale';
+export const stops: { id: StopId; label: string; href: string }[] = [
+  { id: 'archive', label: 'Photos', href: '/archive' },
+  { id: 'dressing', label: 'Notes', href: '/dressing-room' },
+  { id: 'wings', label: 'Letter', href: '/wings' },
+  { id: 'finale', label: 'Curtain', href: '/curtain-call' },
+];
+
+/** The order Ambrose leads guests through after his introduction. The stage comes last. */
+export const tour: RoomId[] = ['archive', 'dressing', 'wings'];
+
+/**
+ * The whole visit, in order. A guest can be anywhere up to the first step they haven't
+ * finished, never further: the house drawing (the map) opens only once the show is over.
+ * Keep in step with `furthest()` in progress.ts and the guard in Base.astro.
+ */
+export const route = ['/', '/stage', '/archive', '/dressing-room', '/wings', '/curtain-call', '/house'] as const;
+export const HOUSE_STEP = route.length - 1;

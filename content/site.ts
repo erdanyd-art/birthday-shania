@@ -2,7 +2,7 @@
 // Change a name here and every page and every line of dialogue follows.
 
 export const site = {
-  title: "Shania's Little World",
+  title: 'Shania’s Little World',
   /** The person the theatre is built for. */
   subject: 'Shania',
   /** Who built it. Used in the host's lines and to sign the letter. */
@@ -14,10 +14,15 @@ export const site = {
   description: 'A small show in five rooms. Doors are open.',
   /** Revealed only when the curtain rises. */
   greeting: 'Happy Birthday, Shania',
+  /**
+   * A few things Shania loves, approved by Erdany for anyone to see: a food, a place, a film, a habit.
+   * They sit as little paper tags on her dressing table. Leave the list empty to hide them.
+   */
+  favourites: [] as string[],
   song: {
     title: 'I Will Fly',
     artist: 'Ten2Five',
     /** Paste a Spotify or YouTube link here. While it's null, no link is shown. */
-    url: null as string | null,
+    url: 'https://www.youtube.com/watch?v=8g_ERvGhyw8' as string | null,
   },
 };

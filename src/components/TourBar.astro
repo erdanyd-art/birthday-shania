@@ -1,0 +1,126 @@
+---
+// "You are here": the four stops of the tour, under the header in every room.
+// The current stop is marked; stops already finished get a tick and can be revisited;
+// stops further on stay locked until Ambrose has led the guest there.
+import { stops, type StopId } from '../lib/rooms';
+
+interface Props {
+  current: StopId;
+}
+
+const { current } = Astro.props;
+const at = stops.findIndex((s) => s.id === current);
+---
+
+<nav class="tour" aria-label={`The tour: stop ${at + 1} of ${stops.length}`} data-tour>
+  <ol>
+    {stops.map((stop, i) => (
+      <li class:list={{ current: stop.id === current }} data-stop={stop.id}>
+        <a href={stop.href} aria-current={stop.id === current ? 'step' : undefined}>
+          <span class="pip" aria-hidden="true"><span class="num">{i + 1}</span><span class="tick">✓</span></span>
+          <span class="label">{stop.label}</span>
+          <span class="visually-hidden" data-locked-note hidden>, not yet</span>
+        </a>
+      </li>
+    ))}
+  </ol>
+</nav>
+
+<script>
+  import { onPage } from '../lib/page';
+  import { furthest, readProgress, roamFree } from '../lib/progress';
+  import { route } from '../lib/rooms';
+
+  onPage((signal) => {
+    const bar = document.querySelector('[data-tour]');
+    if (!bar) return;
+    const paint = () => {
+      const p = readProgress();
+      const reach = roamFree() ? route.length : furthest(p);
+      for (const li of bar.querySelectorAll<HTMLElement>('[data-stop]')) {
+        const a = li.querySelector('a')!;
+        const href = (a.dataset.href ??= a.getAttribute('href')!);
+        const id = li.dataset.stop;
+        const seen = id === 'finale' ? p.finaleSeen : p.done.includes(id as 'archive');
+        const locked = route.indexOf(href as (typeof route)[number]) > reach;
+        li.classList.toggle('done', seen && !li.classList.contains('current'));
+        li.classList.toggle('locked', locked);
+        // A locked stop is not a link at all, so there is nothing to skip ahead with.
+        if (locked) a.removeAttribute('href');
+        else a.setAttribute('href', href);
+        a.toggleAttribute('aria-disabled', locked);
+        li.querySelector<HTMLElement>('[data-locked-note]')!.hidden = !locked;
+      }
+    };
+    paint();
+    window.addEventListener('tour:progress', paint, { signal });
+  });
+</script>
+
+<style>
+  .tour {
+    padding: .55rem var(--gutter-r) .6rem var(--gutter-l);
+    border-bottom: 1px solid var(--rule);
+    background: color-mix(in srgb, var(--paper) 92%, var(--card));
+  }
+  :global(html[data-tone='night']) .tour {
+    background: color-mix(in srgb, var(--deep) 85%, var(--ink));
+    border-bottom-color: color-mix(in srgb, var(--paper) 18%, transparent);
+  }
+  ol {
+    list-style: none;
+    margin: 0 auto;
+    padding: 0;
+    max-width: 30rem;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    position: relative;
+  }
+  /* The thread joining the stops. */
+  ol::before {
+    content: '';
+    position: absolute;
+    left: 12.5%;
+    right: 12.5%;
+    top: 13px;
+    height: 1.5px;
+    background: var(--rule);
+  }
+  a {
+    position: relative;
+    display: grid;
+    justify-items: center;
+    gap: .25rem;
+    min-height: 44px;
+    text-decoration: none;
+    color: var(--ink-2);
+  }
+  :global(html[data-tone='night']) a { color: color-mix(in srgb, var(--paper) 75%, transparent); }
+  .pip {
+    display: grid;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    border: 1.5px solid currentColor;
+    background: var(--paper);
+    color: var(--ink-2);
+    font: 600 .74rem/1 var(--font-ui);
+  }
+  :global(html[data-tone='night']) .pip { background: var(--deep); color: var(--paper); }
+  .tick { display: none; }
+  .label {
+    font: 600 .74rem/1 var(--font-ui);
+    font-stretch: 80%;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+  }
+  .done .pip { background: var(--pink); border-color: var(--ink); color: var(--ink); }
+  .done .num { display: none; }
+  .done .tick { display: inline; }
+  .current a { color: var(--cherry); }
+  :global(html[data-tone='night']) .current a { color: var(--pink); }
+  .locked a { cursor: default; opacity: .5; }
+  .locked .pip { border-style: dashed; }
+  .current .pip { background: var(--cherry); border-color: var(--cherry); color: var(--paper); }
+</style>

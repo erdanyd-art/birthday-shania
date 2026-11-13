@@ -2,7 +2,9 @@
 // Scene II: The Archive of Her. Two prints under a bare bulb in the attic.
 // The childhood print rests on top of the current one; lifting it sets then beside now.
 import Base from '../layouts/Base.astro';
-import CueCards from '../components/CueCards.astro';
+import Gate from '../components/Gate.astro';
+import Develop from '../components/games/Develop.astro';
+import GuideDock from '../components/GuideDock.astro';
 import Print from '../components/Print.astro';
 import { archive } from '../../content/archive';
 import { lines } from '../../content/host';
@@ -15,119 +17,154 @@ const nowImage = findPhoto(archive.now.file);
 const narration = archive.narration;
 ---
 
-<Base title="The Archive of Her">
-  <article class="page archive" data-archive>
-    <header class="head">
-      <p class="kicker">Scene II · Upstairs</p>
-      <h1 class="title">The Archive of Her</h1>
-    </header>
+<Base title="The Archive of Her" stop="archive">
+  <Gate stop="archive" title="Develop the photo" line={lines.doors.archive}>
+    <Develop image={thenImage} alt={archive.then.alt} />
+  </Gate>
+  <div data-gated-room="archive">
+  <div class="attic-room">
+    <article class="page archive" data-archive data-after-lift={lines.archive.afterLift}>
+      <header class="head">
+        <p class="kicker">Scene II · Upstairs</p>
+        <h1 class="title">The Archive of Her</h1>
+      </header>
 
-    <CueCards variant="note" lines={lines.archive} heardKey="archive" class="note" />
-
-    <div class="table-wrap">
-      <svg class="attic" viewBox="0 0 100 20" preserveAspectRatio="none" aria-hidden="true">
-        <path d="M0 20 L50 0 L100 20" fill="none" stroke="#171717" stroke-width="1.6" vector-effect="non-scaling-stroke" />
-        <path d="M6 20 L50 2.4 L94 20" fill="none" stroke="#171717" stroke-width="1" vector-effect="non-scaling-stroke" opacity=".45" />
-      </svg>
-      <div class="bulb" aria-hidden="true"><span class="cord"></span><span class="glass"></span></div>
-      <div class="table">
-        <Print
-          class="print-now"
-          image={nowImage}
-          alt={archive.now.alt}
-          caption={archive.now.caption}
-          focus={archive.now.focus}
-          needed={`Current photo of ${site.subject}: add it in content/archive.ts`}
-        />
-        <Print
-          class="print-then"
-          data-then=""
-          image={thenImage}
-          alt={archive.then.alt}
-          caption={archive.then.caption}
-          focus={archive.then.focus}
-          needed={`Childhood photo of ${site.subject}: add it in content/archive.ts`}
-        />
+      <div class="table-wrap">
+        <svg class="attic" viewBox="0 0 100 20" preserveAspectRatio="none" aria-hidden="true">
+          <path d="M0 20 L50 0 L100 20" fill="none" stroke="#171717" stroke-width="1.6" vector-effect="non-scaling-stroke" />
+          <path d="M6 20 L50 2.4 L94 20" fill="none" stroke="#171717" stroke-width="1" vector-effect="non-scaling-stroke" opacity=".45" />
+        </svg>
+        <div class="bulb" aria-hidden="true"><span class="cord"></span><span class="glass"></span></div>
+        <div class="table">
+          <Print
+            class="print-now"
+            image={nowImage}
+            alt={archive.now.alt}
+            caption={archive.now.caption}
+            focus={archive.now.focus}
+            needed={`Current photo of ${site.subject}: add it in content/archive.ts`}
+          />
+          <span class="lift-tab" aria-hidden="true">Tap to lift</span>
+          <Print
+            class="print-then"
+            data-then=""
+            image={thenImage}
+            alt={archive.then.alt}
+            caption={archive.then.caption}
+            focus={archive.then.focus}
+            needed={`Childhood photo of ${site.subject}: add it in content/archive.ts`}
+          />
+        </div>
       </div>
-    </div>
 
-    <div class="controls">
-      <button type="button" class="btn" data-lift aria-pressed="false">Lift the photograph</button>
-      <span class="hint">or slide it aside</span>
-    </div>
+      <div class="controls">
+        <button type="button" class="btn" data-lift aria-pressed="false">Lift the photograph</button>
+        <span class="hint">or slide it aside</span>
+      </div>
 
-    <div class="narration" data-narration>
-      {narration?.length ? (
-        narration.map((p) => <p>{p}</p>)
-      ) : (
-        showPlaceholders && (
-          <p class="narration-placeholder">
-            <span class="stamp">Placeholder</span>
-            {site.creator}’s narration goes here: a few sentences, set between the two photographs.
-            Write it in content/archive.ts.
-          </p>
-        )
-      )}
-    </div>
+      <div class="narration" data-narration>
+        {narration?.length ? (
+          narration.map((p) => <p>{p}</p>)
+        ) : (
+          showPlaceholders && (
+            <p class="narration-placeholder">
+              <span class="stamp">Placeholder</span>
+              {site.creator}’s narration goes here: a few sentences, set between the two photographs.
+              Write it in content/archive.ts.
+            </p>
+          )
+        )}
+      </div>
 
-    <nav class="onward" aria-label="Where next">
-      <a class="btn ghost" href="/house">Back to the house</a>
-      <a class="next" href={rooms.dressing.href}>Next door: {rooms.dressing.name}</a>
-    </nav>
-  </article>
+      <div data-dock-end aria-hidden="true"></div>
+    </article>
+  </div>
+
+  <GuideDock
+    room="archive"
+    todo={lines.archive.todo}
+    waitFor
+    arrive={lines.archive.arrive}
+    next={{ line: lines.archive.next, label: `Follow me: ${rooms.dressing.name}`, href: rooms.dressing.href, room: rooms.dressing.name }}
+  />
+  </div>
 </Base>
 
 <script>
   import { markVisited } from '../lib/progress';
+  import { onPage } from '../lib/page';
+  import { play } from '../lib/sound';
 
-  markVisited('archive');
+  onPage((signal) => {
+    const scene = document.querySelector<HTMLElement>('[data-archive]');
+    if (!scene) return;
+    markVisited('archive');
 
-  const scene = document.querySelector<HTMLElement>('[data-archive]')!;
-  const button = document.querySelector<HTMLButtonElement>('[data-lift]')!;
-  const then = document.querySelector<HTMLElement>('[data-then]')!;
+    const button = document.querySelector<HTMLButtonElement>('[data-lift]')!;
+    const then = document.querySelector<HTMLElement>('[data-then]')!;
+    let reacted = false;
 
-  // Without this script everything is simply visible; with it, the narration waits for the lift.
-  scene.classList.add('is-staged');
+    // Without this script everything is simply visible; with it, the narration waits for the lift.
+    scene.classList.add('is-staged');
 
-  const setLifted = (lifted: boolean) => {
-    scene.classList.toggle('is-lifted', lifted);
-    button.setAttribute('aria-pressed', String(lifted));
-    button.textContent = lifted ? 'Put it back' : 'Lift the photograph';
-  };
-  button.addEventListener('click', () => setLifted(!scene.classList.contains('is-lifted')));
+    const setLifted = (lifted: boolean) => {
+      scene.classList.toggle('is-lifted', lifted);
+      button.setAttribute('aria-pressed', String(lifted));
+      button.textContent = lifted ? 'Put it back' : 'Lift the photograph';
+      play('paper');
+      // Ambrose reacts the first time, and only the first time.
+      if (lifted && !reacted) {
+        reacted = true;
+        if (scene.dataset.afterLift) {
+          window.dispatchEvent(new CustomEvent('guide:say', { detail: { line: scene.dataset.afterLift } }));
+        }
+        // The room's task is done: once the guest has read to the end, he leads on.
+        window.dispatchEvent(new Event('guide:ready'));
+      }
+    };
+    button.addEventListener('click', () => setLifted(!scene.classList.contains('is-lifted')), { signal });
 
-  // Slide the old print aside with a finger, or just tap it.
-  let start: { x: number; y: number } | null = null;
-  then.addEventListener('pointerdown', (e) => {
-    if (scene.classList.contains('is-lifted')) return;
-    start = { x: e.clientX, y: e.clientY };
-    then.setPointerCapture(e.pointerId);
-    then.classList.add('is-dragging');
+    // Slide the old print aside with a finger, or just tap it.
+    let start: { x: number; y: number } | null = null;
+    then.addEventListener('pointerdown', (e) => {
+      if (scene.classList.contains('is-lifted')) return;
+      start = { x: e.clientX, y: e.clientY };
+      then.setPointerCapture(e.pointerId);
+      then.classList.add('is-dragging');
+    }, { signal });
+    then.addEventListener('pointermove', (e) => {
+      if (!start) return;
+      then.style.translate = `${e.clientX - start.x}px ${(e.clientY - start.y) * 0.5}px`;
+    }, { signal });
+    const release = (e: PointerEvent, cancelled = false) => {
+      if (!start) return;
+      const moved = Math.hypot(e.clientX - start.x, e.clientY - start.y);
+      start = null;
+      then.classList.remove('is-dragging');
+      then.style.translate = '';
+      if (!cancelled && (moved > 40 || moved < 6)) setLifted(true);
+    };
+    then.addEventListener('pointerup', (e) => release(e), { signal });
+    then.addEventListener('pointercancel', (e) => release(e, true), { signal });
   });
-  then.addEventListener('pointermove', (e) => {
-    if (!start) return;
-    then.style.translate = `${e.clientX - start.x}px ${(e.clientY - start.y) * 0.5}px`;
-  });
-  const release = (e: PointerEvent, cancelled = false) => {
-    if (!start) return;
-    const moved = Math.hypot(e.clientX - start.x, e.clientY - start.y);
-    start = null;
-    then.classList.remove('is-dragging');
-    then.style.translate = '';
-    if (!cancelled && (moved > 40 || moved < 6)) setLifted(true);
-  };
-  then.addEventListener('pointerup', (e) => release(e));
-  then.addEventListener('pointercancel', (e) => release(e, true));
 </script>
 
 <style>
+  /* A warm attic: light under the bulb, the corners falling away into shadow. */
+  .attic-room {
+    position: relative;
+    min-height: calc(100dvh - var(--chrome-h));
+    background:
+      radial-gradient(ellipse 75% 55% at 50% 42%, color-mix(in srgb, var(--edge) 85%, transparent), transparent 75%),
+      radial-gradient(ellipse 120% 90% at 50% 40%, transparent 55%, color-mix(in srgb, var(--ink) 10%, transparent)),
+      color-mix(in srgb, var(--card) 70%, var(--paper));
+  }
   .archive {
     display: grid;
     gap: 1.5rem;
-    grid-template-areas: 'head' 'note' 'table' 'controls' 'narration' 'onward';
+    grid-template-areas: 'head' 'table' 'controls' 'narration';
   }
   .head { grid-area: head; display: grid; gap: .5rem; }
-  .archive > :global(.note) { grid-area: note; justify-self: start; }
 
   /* ---- the table and the two prints ---- */
   .table-wrap {
@@ -143,7 +180,14 @@ const narration = archive.narration;
   .attic { position: absolute; top: 0; left: -4%; width: 108%; height: 3.4rem; overflow: visible; }
   .bulb { position: absolute; top: 0; left: 50%; display: grid; justify-items: center; translate: -50% 0; }
   .cord { width: 1.5px; height: 2rem; background: var(--ink); }
-  .glass { width: .9rem; height: .9rem; border-radius: 50%; border: 1.5px solid var(--ink); background: var(--edge); }
+  .glass {
+    width: .9rem;
+    height: .9rem;
+    border-radius: 50%;
+    border: 1.5px solid var(--ink);
+    background: var(--edge);
+    box-shadow: 0 0 22px 8px color-mix(in srgb, var(--edge) 80%, transparent);
+  }
 
   .table {
     position: relative;
@@ -164,6 +208,27 @@ const narration = archive.narration;
   .table > :global(.print-now) { translate: 3cqw 3cqw; rotate: 2.2deg; }
   .table > :global(.print-then) { z-index: 2; rotate: -3deg; cursor: grab; touch-action: pan-y; }
   .table > :global(.print-then.is-dragging) { transition: none; cursor: grabbing; }
+
+  /* A paper tab on the old print, so the action shows even while Ambrose is talking. */
+  .lift-tab {
+    position: absolute;
+    z-index: 3;
+    top: 0;
+    right: 9cqw;
+    padding: .45rem .7rem;
+    background: var(--pink);
+    border: 1px solid var(--ink);
+    rotate: 6deg;
+    pointer-events: none;
+    font: 600 .74rem/1 var(--font-ui);
+    font-stretch: 78%;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--ink);
+    box-shadow: 0 3px 6px color-mix(in srgb, var(--ink) 18%, transparent);
+    transition: opacity var(--dur-quick) ease;
+  }
+  .is-lifted .lift-tab { opacity: 0; }
 
   .is-lifted .table { height: 72cqw; }
   .is-lifted .table > :global(.print-then) { translate: -25cqw 4cqw; rotate: -4.5deg; scale: .64; cursor: default; }
@@ -205,17 +270,14 @@ const narration = archive.narration;
     text-transform: uppercase;
   }
 
-  .onward { grid-area: onward; display: flex; flex-wrap: wrap; align-items: center; gap: .75rem 1.5rem; justify-self: center; margin-top: .5rem; }
-  .next { font: 600 .8rem/1.2 var(--font-ui); color: var(--cherry); text-underline-offset: .25em; padding-block: .6rem; }
-
   @media (min-width: 900px) {
     .archive {
       grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr);
-      grid-template-areas: 'head table' 'note table' 'controls table' 'narration table' 'onward table';
-      grid-template-rows: auto auto auto auto 1fr;
+      grid-template-areas: 'head table' 'controls table' 'narration table';
+      grid-template-rows: auto auto 1fr;
       column-gap: 4rem;
       align-items: start;
     }
-    .controls, .narration, .onward { justify-self: start; }
+    .controls, .narration { justify-self: start; }
   }
 </style>

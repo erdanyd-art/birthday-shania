@@ -1,0 +1,107 @@
+---
+// Ambrose in person, standing beside what he says. He greets guests as they arrive
+// in a room and, at the end of it, leads them on to the next one.
+import Ambrose from './Ambrose.astro';
+import { site } from '../../content/site';
+
+type Link = { label: string; href: string };
+
+interface Props {
+  line: string;
+  /** The main way on, e.g. "Follow me: The Dressing Room". */
+  action?: Link;
+  secondary?: Link;
+  /** Slide him in when the page opens. */
+  arrive?: boolean;
+  class?: string;
+  [key: `data-${string}`]: string | undefined;
+}
+
+const { line, action, secondary, arrive = true, class: className, ...rest } = Astro.props;
+---
+
+<div class:list={['guide', { 'guide--arrive': arrive }, className]} {...rest}>
+  <div class="figure"><Ambrose wire={false} decorative /></div>
+  <div class="speech">
+    <p class="who">{site.host}</p>
+    <p class="voice line" data-guide-line aria-live="polite">{line}</p>
+    {(action || secondary) && (
+      <div class="actions">
+        {action && (
+          <a class="btn" href={action.href} data-guide-action>
+            <span data-guide-label>{action.label}</span>
+            <span aria-hidden="true">→</span>
+          </a>
+        )}
+        {secondary && <a class="more" href={secondary.href}>{secondary.label}</a>}
+      </div>
+    )}
+  </div>
+</div>
+
+<style>
+  .guide {
+    display: grid;
+    grid-template-columns: clamp(4.25rem, 19vw, 5.5rem) minmax(0, 1fr);
+    gap: .9rem;
+    align-items: end;
+    max-width: 36rem;
+  }
+  .figure { padding-bottom: .1rem; }
+  .figure :global(svg) { width: 100%; height: auto; }
+
+  .speech {
+    position: relative;
+    background: var(--card);
+    color: var(--ink);
+    border-top: 3px solid var(--cherry);
+    padding: .9rem 1.05rem 1rem;
+    margin-bottom: 2.4rem;
+    box-shadow: 0 6px 16px color-mix(in srgb, var(--ink) 13%, transparent);
+  }
+  /* The speech tail, pointing back at him. */
+  .speech::before {
+    content: '';
+    position: absolute;
+    left: -12px;
+    bottom: 1.6rem;
+    width: 13px;
+    height: 20px;
+    background: var(--card);
+    clip-path: polygon(100% 0, 0 55%, 100% 100%);
+  }
+  .who {
+    font: 600 .74rem/1 var(--font-ui);
+    font-stretch: 75%;
+    letter-spacing: .24em;
+    text-transform: uppercase;
+    color: var(--cherry);
+  }
+  .line { font-size: clamp(1.1rem, 4.3vw, 1.32rem); margin-top: .45rem; }
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .5rem 1.1rem;
+    margin-top: .95rem;
+  }
+  .more {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    font: 600 .8rem/1.2 var(--font-ui);
+    color: var(--cherry);
+    text-underline-offset: .25em;
+  }
+
+  .guide--arrive .figure { animation: step-in .75s var(--ease-arrive) .1s both; }
+  .guide--arrive .speech { animation: speak .5s var(--ease-arrive) .45s both; }
+  @keyframes step-in {
+    from { translate: -3rem 0; opacity: 0; }
+    to { translate: 0 0; opacity: 1; }
+  }
+  @keyframes speak {
+    from { translate: 0 6px; opacity: .2; }
+    to { translate: 0 0; opacity: 1; }
+  }
+</style>

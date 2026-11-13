@@ -1,14 +1,15 @@
 ---
-// Home base: the whole theatre in section. Rooms colour in as guests visit them.
+// The whole theatre in section. It opens only after the curtain call (see the guard in
+// Base.astro): the end of the show, and the way back into any room afterwards.
 import Base from '../layouts/Base.astro';
-import CueCards from '../components/CueCards.astro';
+import Guide from '../components/Guide.astro';
 import HouseMap from '../components/HouseMap.astro';
 import { lines } from '../../content/host';
 import { site } from '../../content/site';
 import { rooms, stage } from '../lib/rooms';
 
 const programme = [
-  { ...rooms.boxoffice, what: 'Where you came in. Tear another ticket.' },
+  { ...rooms.boxoffice, what: 'Where you came in.' },
   { ...rooms.archive, what: 'Two photographs, some years apart.' },
   { ...rooms.dressing, what: 'Notes from the people who know her best.' },
   { ...rooms.wings, what: `A letter from ${site.creator}.` },
@@ -18,12 +19,12 @@ const programme = [
 <Base title="The House" current="house">
   <div class="page house-page">
     <header class="head">
-      <p class="kicker">Home base</p>
+      <p class="kicker">After the show</p>
       <h1 class="title">The house</h1>
-      <p class="sub">Every room you visit gets coloured in.</p>
+      <p class="sub">Every room is open now. Go back to any of them.</p>
     </header>
 
-    <CueCards variant="note" lines={lines.house} heardKey="house" doneLabel="Got it" class="note" />
+    <Guide class="greeting" line={lines.house} />
 
     <figure class="map">
       <div class="map-frame">
@@ -44,57 +45,78 @@ const programme = [
           </li>
         ))}
         <li class="finale">
-          <a href={stage.href}>
+          <a href={stage.href} data-room="stage">
             <span class="name">{stage.name}</span>
-            <span class="what">Saved for last.</span>
-            <span class="state">Curtain closed</span>
+            <span class="what">The curtain call, and everyone who came.</span>
+            <span class="state" data-state>Curtain up</span>
           </a>
         </li>
       </ol>
-      <a class="replay" href={stage.introHref}>Hear {site.host}’s introduction again</a>
+      <div class="extras">
+        <a class="replay" href={stage.introHref}>Hear {site.host}’s introduction again</a>
+        <button type="button" class="replay over" data-over>Start the tour over</button>
+      </div>
     </nav>
   </div>
 </Base>
 
 <script>
-  import { markShown, readProgress } from '../lib/progress';
+  import { navigate } from 'astro:transitions/client';
+  import { markShown, readProgress, resetProgress } from '../lib/progress';
   import { reducedMotion } from '../lib/motion';
+  import { later, onPage } from '../lib/page';
   import type { RoomId } from '../lib/rooms';
 
-  const progress = readProgress();
-  const fresh = new Set<RoomId>();
+  onPage((signal) => {
+    const map = document.querySelector<HTMLElement>('[data-map]');
+    if (!map) return;
+    const progress = readProgress();
+    const fresh = new Set<RoomId>();
 
-  for (const el of document.querySelectorAll<HTMLElement | SVGElement>('[data-room]')) {
-    const id = el.dataset.room as RoomId | 'stage';
-    if (id === 'stage') continue;
-    const visited = progress.visited.includes(id);
-    el.classList.toggle('is-coloured', visited);
-    if (visited && !progress.shown.includes(id)) {
-      el.classList.add('is-new');
-      fresh.add(id);
+    for (const el of document.querySelectorAll<HTMLElement | SVGElement>('[data-room]')) {
+      const id = el.dataset.room as RoomId | 'stage';
+      const visited = id !== 'stage' && progress.visited.includes(id);
+      el.classList.toggle('is-coloured', visited);
+      if (visited && !progress.shown.includes(id as RoomId)) {
+        el.classList.add('is-new');
+        fresh.add(id as RoomId);
+      }
+      if (id === 'stage') el.classList.add('is-open');
+      const state = el.querySelector('[data-state]');
+      if (state && id !== 'stage') state.textContent = visited ? 'Coloured in' : 'Open';
+      if (el instanceof SVGAElement && el.dataset.name) {
+        el.setAttribute('aria-label', `${el.dataset.name}${visited ? ', coloured in' : ''}`);
+      }
     }
-    const state = el.querySelector('[data-state]');
-    if (state) state.textContent = visited ? 'Coloured in' : 'Not yet visited';
-    if (el instanceof SVGAElement && el.dataset.name) {
-      el.setAttribute('aria-label', visited ? `${el.dataset.name}, coloured in` : el.dataset.name);
-    }
-  }
-  fresh.forEach(markShown);
+    fresh.forEach(markShown);
 
-  // Step into a room: the drawing pushes in toward it before the page changes.
-  const map = document.querySelector<HTMLElement>('[data-map]')!;
-  map.addEventListener('click', (e) => {
-    const room = (e.target as Element).closest<SVGAElement>('a.room');
-    if (!room || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || reducedMotion()) return;
-    e.preventDefault();
-    map.style.setProperty('--ox', `${(Number(room.dataset.cx) / 360) * 100}%`);
-    map.style.setProperty('--oy', `${(Number(room.dataset.cy) / 486) * 100}%`);
-    map.classList.add('is-entering');
-    const href = room.getAttribute('href')!;
-    setTimeout(() => { window.location.href = href; }, 430);
-  });
-  window.addEventListener('pageshow', (e) => {
-    if (e.persisted) map.classList.remove('is-entering');
+    // Starting over asks twice, so a stray tap can't wipe the evening.
+    const over = document.querySelector<HTMLButtonElement>('[data-over]')!;
+    over.addEventListener('click', () => {
+      if (!over.dataset.armed) {
+        over.dataset.armed = '';
+        over.textContent = 'Tap again: back to the box office';
+        later(signal, 4000, () => { delete over.dataset.armed; over.textContent = 'Start the tour over'; });
+        return;
+      }
+      resetProgress();
+      document.documentElement.removeAttribute('data-free');
+      document.documentElement.setAttribute('data-unlocked', '');
+      void navigate('/');
+    }, { signal });
+
+    // Step into a room: the drawing pushes in toward it before the page changes.
+    map.addEventListener('click', (e) => {
+      const room = (e.target as Element).closest<SVGAElement>('a.room');
+      if (!room || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || reducedMotion()) return;
+      e.preventDefault();
+      e.stopPropagation();
+      map.style.setProperty('--ox', `${(Number(room.dataset.cx) / 360) * 100}%`);
+      map.style.setProperty('--oy', `${(Number(room.dataset.cy) / 486) * 100}%`);
+      map.classList.add('is-entering');
+      const href = room.getAttribute('href')!;
+      later(signal, 430, () => void navigate(href));
+    }, { signal, capture: true });
   });
 </script>
 
@@ -102,11 +124,11 @@ const programme = [
   .house-page {
     display: grid;
     gap: 1.75rem;
-    grid-template-areas: 'head' 'note' 'map' 'programme';
+    grid-template-areas: 'head' 'greeting' 'map' 'programme';
   }
   .head { grid-area: head; display: grid; gap: .5rem; }
   .sub { font-size: 1.12rem; color: var(--ink-2); }
-  .house-page > :global(.note) { grid-area: note; justify-self: start; }
+  .house-page > :global(.greeting) { grid-area: greeting; }
 
   .map { grid-area: map; margin: 0; }
   .map-frame {
@@ -136,7 +158,7 @@ const programme = [
     padding: .8rem .2rem;
     text-decoration: none;
   }
-  .programme a:hover .name { color: var(--cherry); }
+  @media (hover: hover) { .programme a:hover .name { color: var(--cherry); } }
   .name { font: 600 1.22rem/1.15 var(--font-display); }
   .what { grid-column: 1; font: 500 .8rem/1.35 var(--font-ui); color: var(--ink-2); }
   .state {
@@ -144,27 +166,37 @@ const programme = [
     grid-row: 1 / span 2;
     padding: .38rem .5rem;
     border: 1px solid var(--ink);
-    font: 600 .64rem/1 var(--font-ui);
+    font: 600 .74rem/1 var(--font-ui);
     font-stretch: 80%;
-    letter-spacing: .14em;
+    letter-spacing: .1em;
     text-transform: uppercase;
     white-space: nowrap;
   }
   .is-coloured .state { background: var(--pink); }
   .finale .name { color: var(--cherry); }
   .finale .state { background: var(--deep); border-color: var(--deep); color: var(--paper); }
+  .extras { display: flex; flex-wrap: wrap; gap: 0 1.5rem; }
   .replay {
-    justify-self: start;
-    padding-block: .6rem;
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
     font: 600 .8rem/1.2 var(--font-ui);
     color: var(--cherry);
     text-underline-offset: .25em;
+  }
+  .over {
+    min-height: 44px;
+    border: 0;
+    background: none;
+    padding-inline: 0;
+    text-decoration: underline;
+    cursor: pointer;
   }
 
   @media (min-width: 900px) {
     .house-page {
       grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
-      grid-template-areas: 'map head' 'map note' 'map programme';
+      grid-template-areas: 'map head' 'map greeting' 'map programme';
       grid-template-rows: auto auto 1fr;
       column-gap: 4rem;
       align-items: start;

@@ -1,5 +1,259 @@
 ---
-import Unbuilt from '../components/Unbuilt.astro';
+// Finale: Curtain Call. A guest raises the curtain; behind it the stage is pink,
+// a banner comes down with the greeting, one paper bird crosses on a wire,
+// and Ambrose takes his bow. Then the company: everyone who made the evening.
+import Base from '../layouts/Base.astro';
+import Gate from '../components/Gate.astro';
+import Rope from '../components/games/Rope.astro';
+import Ambrose from '../components/Ambrose.astro';
+import CueCards from '../components/CueCards.astro';
+import StageSet from '../components/StageSet.astro';
+import { lines } from '../../content/host';
+import { messages } from '../../content/messages';
+import { site } from '../../content/site';
+import { showPlaceholders } from '../lib/content';
+
+const contributors = messages.map((m) => m.name);
 ---
 
-<Unbuilt scene="Finale" name="Curtain Call" />
+<Base title="Curtain Call" tone="night" stop="finale">
+  <Gate stop="finale" title="Pull the rope" line={lines.doors.finale} tone="night">
+    <Rope />
+  </Gate>
+  <div data-gated-room="finale">
+  <noscript>
+    <style>
+      .stage .curtain { display: none; }
+      .banner { translate: -50% 0 !important; }
+    </style>
+  </noscript>
+
+  <h1 class="visually-hidden">Curtain Call</h1>
+  <StageSet banner>
+    <Fragment slot="backdrop">
+      <div class="banner" data-banner aria-hidden="true">
+        <span class="wire left"></span><span class="wire right"></span>
+        <p class="greeting">{site.greeting}</p>
+      </div>
+      <svg class="bird" viewBox="0 0 60 260" aria-hidden="true">
+        <line x1="30" y1="0" x2="30" y2="226" stroke="#171717" stroke-width="1" opacity=".55" />
+        <path d="M6 236 L30 226 L54 236 L30 244 Z" fill="#F7F2E6" stroke="#171717" stroke-width="1.2" stroke-linejoin="round" />
+        <path d="M30 226 L22 214 L30 232 L38 214 Z" fill="#E9DDC7" stroke="#171717" stroke-width="1.2" stroke-linejoin="round" />
+      </svg>
+    </Fragment>
+    <Ambrose slot="host" pose={lines.finale[0]!.pose} />
+    <div class="cards" data-finale>
+      <CueCards cues={lines.finale} doneLabel="Meet the company" />
+    </div>
+  </StageSet>
+
+  <section class="company" data-company aria-labelledby="company-h">
+    <div class="page">
+      <p class="kicker">The company</p>
+      <h2 id="company-h" class="title">Tonight’s cast</h2>
+      <dl class="cast">
+        <div><dt>Starring</dt><dd>{site.subject}</dd></div>
+        <div><dt>Built by hand by</dt><dd>{site.creator}</dd></div>
+        <div><dt>Your host</dt><dd>{site.host}</dd></div>
+        {(contributors.length > 0 || showPlaceholders) && (
+          <div>
+            <dt>Notes from</dt>
+            <dd>{contributors.length ? contributors.join(' · ') : <span class="stamp">Placeholder: everyone who wrote a note</span>}</dd>
+          </div>
+        )}
+        {site.song.url && (
+          <div>
+            <dt>Playing in the wings</dt>
+            <dd><a href={site.song.url} target="_blank" rel="noopener noreferrer">{site.song.title}, {site.song.artist}</a></dd>
+          </div>
+        )}
+      </dl>
+      <p class="voice thanks">And you, for coming.</p>
+      <div class="after">
+        <a class="btn" href="/house">See the whole house <span aria-hidden="true">→</span></a>
+      </div>
+      <p class="after-note">Every room is open now. Go back to any of them from the map.</p>
+    </div>
+  </section>
+  </div>
+</Base>
+
+<script>
+  import type { Cue, Pose } from '../../content/types';
+  import { markFinaleSeen } from '../lib/progress';
+  import { reducedMotion, wait } from '../lib/motion';
+  import { onPage } from '../lib/page';
+  import { play, setMusicLevel } from '../lib/sound';
+
+  onPage((signal) => {
+    const cards = document.querySelector<HTMLElement>('[data-finale]');
+    if (!cards) return;
+    const stage = document.querySelector<HTMLElement>('[data-stage]')!;
+    const host = document.querySelector<HTMLElement>('[data-host]')!;
+    const ambrose = host.querySelector<SVGElement>('[data-ambrose]')!;
+    const cues = cards.querySelector<HTMLElement>('[data-cues]')!;
+    const banner = document.querySelector<HTMLElement>('[data-banner]')!;
+    const company = document.querySelector<HTMLElement>('[data-company]')!;
+
+    // Without this script the company is simply listed below; with it, it waits for the bow.
+    company.hidden = true;
+
+    let straighten = 0;
+    signal.addEventListener('abort', () => window.clearTimeout(straighten));
+    const strike = (pose: Pose) => {
+      window.clearTimeout(straighten);
+      ambrose.dataset.pose = pose;
+      if (pose === 'bow') straighten = window.setTimeout(() => { ambrose.dataset.pose = 'welcome'; }, 1400);
+    };
+
+    let raised = false;
+    const raise = async (instant = false) => {
+      if (raised) return;
+      raised = true;
+      markFinaleSeen();
+      banner.removeAttribute('aria-hidden');
+      if (instant || reducedMotion()) {
+        stage.classList.add('is-raised', 'is-shown');
+        ambrose.classList.add('has-carnation');
+        return;
+      }
+      cards.hidden = true;
+      // The music steps back for the curtain and the applause, then returns.
+      setMusicLevel(0.35, 0.6);
+      play('curtain');
+      stage.classList.add('is-raised');
+      await wait(1350);
+      stage.classList.add('is-shown');
+      await wait(650);
+      play('applause');
+      stage.classList.add('is-flying');
+      ambrose.classList.add('has-carnation');
+      await wait(1100);
+      if (signal.aborted) return;
+      setMusicLevel(1, 3);
+      cards.hidden = false;
+    };
+
+    const meetTheCompany = () => {
+      cards.hidden = true;
+      company.hidden = false;
+      company.scrollIntoView({ behavior: reducedMotion() ? 'auto' : 'smooth', block: 'start' });
+    };
+
+    cues.addEventListener('cues:line', (e) => {
+      const { cue } = (e as CustomEvent<{ cue: Cue }>).detail;
+      if (cue.pose) strike(cue.pose);
+      if (cue.action === 'raise') void raise();
+    }, { signal });
+    cues.addEventListener('cues:done', (e) => {
+      e.preventDefault();
+      meetTheCompany();
+    }, { signal });
+    cues.addEventListener('cues:skip', (e) => {
+      e.preventDefault();
+      void raise(true);
+      strike('welcome');
+      meetTheCompany();
+    }, { signal });
+  });
+</script>
+
+<style>
+  .cards { display: grid; justify-items: center; width: 100%; }
+  .cards > :global(.cues) { width: 100%; }
+
+  /* ---- the banner, let down on two lines ---- */
+  .banner {
+    position: absolute;
+    z-index: 2;
+    top: 3.2rem;
+    left: 50%;
+    width: min(88%, 34rem);
+    translate: -50% -170%;
+    padding: clamp(.9rem, 3vw, 1.4rem) 1rem;
+    background: var(--edge);
+    color: var(--cherry);
+    text-align: center;
+    outline: 1.5px solid var(--cherry);
+    outline-offset: -7px;
+    box-shadow: 0 14px 28px color-mix(in srgb, var(--deep) 30%, transparent);
+    transition: translate .9s var(--ease-arrive);
+  }
+  :global(.is-shown) .banner { translate: -50% 0; animation: sway 2.4s ease-in-out .9s; }
+  @keyframes sway {
+    25% { rotate: 1.2deg; }
+    60% { rotate: -.8deg; }
+  }
+  .wire {
+    position: absolute;
+    bottom: 100%;
+    width: 1px;
+    height: 4rem;
+    background: var(--ink);
+    opacity: .6;
+  }
+  .wire.left { left: 14%; }
+  .wire.right { right: 14%; }
+  .greeting {
+    font: 650 clamp(1.9rem, 8.4vw, 3.6rem)/1.02 var(--font-display);
+    font-variation-settings: 'opsz' 72, 'SOFT' 60;
+    letter-spacing: -.01em;
+    text-wrap: balance;
+  }
+
+  /* ---- one paper bird, crossing once ---- */
+  .bird {
+    position: absolute;
+    z-index: 1; /* behind the banner, so its wire never crosses the greeting */
+    top: 3rem;
+    left: -4rem;
+    width: 2.6rem;
+    height: auto;
+    overflow: visible;
+    opacity: 0;
+  }
+  :global(.is-flying) .bird { animation: fly 4.2s linear forwards; }
+  @keyframes fly {
+    0% { opacity: 1; translate: 0 0; }
+    25% { translate: 30vw -6px; }
+    50% { translate: 60vw 4px; }
+    75% { translate: 90vw -4px; }
+    100% { opacity: 1; translate: 125vw 0; }
+  }
+
+  /* ---- the company ---- */
+  .company { scroll-margin-top: 1rem; }
+  .company .page { display: grid; gap: 1.25rem; padding-top: clamp(2.5rem, 8vw, 4.5rem); }
+  .cast { margin: .5rem 0 0; border-top: 3px double color-mix(in srgb, var(--paper) 60%, transparent); }
+  .cast div {
+    display: grid;
+    gap: .2rem;
+    padding: .9rem 0;
+    border-bottom: 1px solid color-mix(in srgb, var(--paper) 22%, transparent);
+  }
+  @media (min-width: 640px) { .cast div { grid-template-columns: 13rem minmax(0, 1fr); gap: 1.5rem; align-items: baseline; } }
+  .cast dt {
+    font: 600 .74rem/1.3 var(--font-ui);
+    font-stretch: 78%;
+    letter-spacing: .2em;
+    text-transform: uppercase;
+    color: var(--pink);
+  }
+  .cast dd { margin: 0; font: 600 1.35rem/1.3 var(--font-display); }
+  .cast a { color: var(--paper); text-underline-offset: .2em; }
+  .thanks { font-size: clamp(1.4rem, 5vw, 1.9rem); margin-top: .75rem; color: var(--pink); }
+  .after { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem 1.5rem; margin-top: .5rem; }
+  /* Her pink for the last button of the show: it reads on deep cherry, and it's hers. */
+  .after .btn { background: var(--pink); color: var(--deep); }
+  .after .btn:hover { background: var(--paper); }
+  .after-note { font: 500 .86rem/1.4 var(--font-ui); color: color-mix(in srgb, var(--paper) 78%, transparent); }
+  .stamp {
+    display: inline-block;
+    padding: .25rem .45rem;
+    border: 2px solid var(--pink);
+    color: var(--pink);
+    font: 700 .66rem/1.3 var(--font-ui);
+    letter-spacing: .16em;
+    text-transform: uppercase;
+  }
+</style>

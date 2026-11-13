@@ -1,7 +1,7 @@
 import type { ImageMetadata } from 'astro';
 import { archive } from '../../content/archive';
 import { letter } from '../../content/letter';
-import { messages } from '../../content/messages';
+import { awaiting, groupPhotos, messages } from '../../content/messages';
 import type { Photo } from '../../content/types';
 
 const files = import.meta.glob<{ default: ImageMetadata }>(
@@ -42,6 +42,11 @@ export function contentGaps(): string[] {
   for (const m of messages) {
     if (m.photo && !findPhoto(m.photo)) gaps.push(`Message from ${m.name}: content/photos/${m.photo} not found`);
     if (m.photo && !m.photoAlt) gaps.push(`Message from ${m.name}: photo alt text`);
+  }
+  for (const a of awaiting) gaps.push(`Note from ${a.name}${a.group ? ` (${a.group})` : ''} still to come: content/messages.ts`);
+  for (const g of groupPhotos) {
+    if (!findPhoto(g.file)) gaps.push(`Photo for ${g.group}: content/photos/${g.file} not found`);
+    if (!messages.some((m) => m.group?.trim() === g.group.trim())) gaps.push(`Photo for ${g.group}: no messages in that group`);
   }
   if (!letter.paragraphs?.length) gaps.push('The letter (content/letter.ts)');
   return gaps;

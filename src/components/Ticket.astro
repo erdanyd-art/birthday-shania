@@ -26,27 +26,34 @@ import { site } from '../../content/site';
 </div>
 
 <script>
-  const ticket = document.querySelector<HTMLElement>('[data-ticket]');
-  const stub = document.querySelector<HTMLElement>('[data-stub]');
-  const button = document.querySelector<HTMLButtonElement>('[data-tear]');
+  import { onPage } from '../lib/page';
+  import { play, startMusic } from '../lib/sound';
 
-  if (ticket && stub && button) {
+  onPage((signal) => {
+    const ticket = document.querySelector<HTMLElement>('[data-ticket]');
+    const stub = document.querySelector<HTMLElement>('[data-stub]');
+    const button = document.querySelector<HTMLButtonElement>('[data-tear]');
+    if (!ticket || !stub || !button) return;
+
     const tear = () => {
       if (ticket.classList.contains('is-torn')) return;
       stub.style.translate = '';
       ticket.classList.add('is-torn');
       button.disabled = true;
+      // Tearing the ticket is the guest's tap that lets the music begin.
+      play('tear');
+      startMusic();
       document.dispatchEvent(new CustomEvent('ticket:torn'));
     };
 
-    button.addEventListener('click', tear);
+    button.addEventListener('click', tear, { signal });
 
     let start: { x: number; y: number } | null = null;
     stub.addEventListener('pointerdown', (e) => {
       start = { x: e.clientX, y: e.clientY };
       stub.setPointerCapture(e.pointerId);
       stub.classList.add('is-dragging');
-    });
+    }, { signal });
     stub.addEventListener('pointermove', (e) => {
       if (!start) return;
       const dx = Math.max(0, e.clientX - start.x);
@@ -57,22 +64,15 @@ import { site } from '../../content/site';
         stub.classList.remove('is-dragging');
         tear();
       }
-    });
+    }, { signal });
     const release = () => {
       start = null;
       stub.classList.remove('is-dragging');
       if (!ticket.classList.contains('is-torn')) stub.style.translate = '';
     };
-    stub.addEventListener('pointerup', release);
-    stub.addEventListener('pointercancel', release);
-
-    // Coming back with the browser's back button restores the page from memory: mend the ticket.
-    window.addEventListener('pageshow', (e) => {
-      if (!e.persisted) return;
-      ticket.classList.remove('is-torn');
-      button.disabled = false;
-    });
-  }
+    stub.addEventListener('pointerup', release, { signal });
+    stub.addEventListener('pointercancel', release, { signal });
+  });
 </script>
 
 <style>
@@ -93,7 +93,7 @@ import { site } from '../../content/site';
     transition: rotate var(--dur-move) var(--ease-arrive);
   }
   .admit {
-    font: 600 .68rem/1 var(--font-ui);
+    font: 600 .74rem/1 var(--font-ui);
     font-stretch: 75%;
     letter-spacing: .32em;
     text-transform: uppercase;
@@ -112,7 +112,7 @@ import { site } from '../../content/site';
     border-top: 1px dashed var(--rule);
   }
   dt {
-    font: 600 .6rem/1.2 var(--font-ui);
+    font: 600 .74rem/1.2 var(--font-ui);
     font-stretch: 78%;
     letter-spacing: .18em;
     text-transform: uppercase;
@@ -145,7 +145,7 @@ import { site } from '../../content/site';
   .stub::after { bottom: -8px; }
   .stub span {
     writing-mode: vertical-rl;
-    font: 600 .68rem/1 var(--font-ui);
+    font: 600 .72rem/1 var(--font-ui);
     font-stretch: 75%;
     letter-spacing: .3em;
     text-transform: uppercase;

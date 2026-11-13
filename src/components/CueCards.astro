@@ -1,88 +1,81 @@
 ---
-// The host's dialogue, one card at a time. Always skippable.
-// With `heardKey`, the card shows on the guest's first visit to that place only.
+// The host's cue cards on the stage, one at a time. Always skippable.
+// Each card can carry a pose and a bit of stage business; the page acts on them
+// through the `cues:line` event. `cues:done` and `cues:skip` can be cancelled
+// (preventDefault) when the page wants to finish with its own exit.
 import { site } from '../../content/site';
+import type { Cue } from '../../content/types';
 
 interface Props {
-  lines: string[];
-  /** Label on the last card's button. */
+  cues: Cue[];
+  /** Label on the last card's button, unless the card names its own. */
   doneLabel?: string;
   /** Where to go after the last card. Without it, the card just closes. */
   doneHref?: string;
   /** Where Skip goes. Defaults to doneHref. */
   skipHref?: string;
-  heardKey?: string;
-  /** "note" is the smaller margin note used inside rooms. */
-  variant?: 'card' | 'note';
   class?: string;
 }
 
-const {
-  lines,
-  doneLabel = 'Close',
-  doneHref,
-  skipHref,
-  heardKey,
-  variant = 'card',
-  class: className,
-} = Astro.props;
+const { cues, doneLabel = 'Close', doneHref, skipHref, class: className } = Astro.props;
 
-const many = lines.length > 1;
+const many = cues.length > 1;
+const first = cues[0]!;
+const label = (i: number) => cues[i]?.button ?? (i === cues.length - 1 ? doneLabel : 'Next');
 ---
 
 <aside
-  class:list={['cues', `cues--${variant}`, className]}
+  class:list={['cues', className]}
   aria-label={`${site.host}, the host`}
   data-cues
-  data-lines={JSON.stringify(lines)}
+  data-script={JSON.stringify(cues)}
   data-done-label={doneLabel}
   data-done-href={doneHref}
   data-skip-href={skipHref}
-  data-heard-key={heardKey}
-  hidden={heardKey ? true : undefined}
 >
   <p class="who">{site.host}</p>
-  <p class="voice line" data-line aria-live="polite">{lines[0]}</p>
+  <p class="voice line" data-line aria-live="polite">{first.say}</p>
   <div class="controls">
-    {many && <span class="count" data-count>1 / {lines.length}</span>}
+    {many && <span class="count" data-count>1 / {cues.length}</span>}
     {many && <button type="button" class="btn ghost" data-skip>Skip</button>}
-    <button type="button" class="btn" data-next>{many ? 'Next' : doneLabel}</button>
+    <button type="button" class="btn" data-next>{label(0)}</button>
   </div>
 </aside>
 
 <script>
-  import { hasHeard, markHeard } from '../lib/progress';
+  import { navigate } from 'astro:transitions/client';
+  import type { Cue } from '../../content/types';
   import { reducedMotion } from '../lib/motion';
+  import { onPage } from '../lib/page';
+  import { play } from '../lib/sound';
 
-  for (const el of document.querySelectorAll<HTMLElement>('[data-cues]')) setup(el);
+  onPage((signal) => {
+    for (const el of document.querySelectorAll<HTMLElement>('[data-cues]')) setup(el, signal);
+  });
 
-  function setup(el: HTMLElement) {
-    const lines = JSON.parse(el.dataset.lines ?? '[]') as string[];
+  function setup(el: HTMLElement, signal: AbortSignal) {
+    const cues = JSON.parse(el.dataset.script ?? '[]') as Cue[];
     const lineEl = el.querySelector<HTMLElement>('[data-line]')!;
     const countEl = el.querySelector<HTMLElement>('[data-count]');
     const next = el.querySelector<HTMLButtonElement>('[data-next]')!;
     const skip = el.querySelector<HTMLButtonElement>('[data-skip]');
-    const key = el.dataset.heardKey;
     const doneLabel = el.dataset.doneLabel ?? 'Close';
+    const label = (i: number) => cues[i]?.button ?? (i === cues.length - 1 ? doneLabel : 'Next');
     let i = 0;
 
-    // A room note appears on the first visit only, whether or not it's dismissed.
-    if (key && !hasHeard(key)) {
-      el.hidden = false;
-      markHeard(key);
-    }
-
     const render = () => {
-      lineEl.textContent = lines[i] ?? '';
-      if (countEl) countEl.textContent = `${i + 1} / ${lines.length}`;
-      next.textContent = i === lines.length - 1 ? doneLabel : 'Next';
+      const cue = cues[i]!;
+      lineEl.textContent = cue.say;
+      if (countEl) countEl.textContent = `${i + 1} / ${cues.length}`;
+      next.textContent = label(i);
+      play('host');
       if (!reducedMotion()) {
         lineEl.animate(
           [{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }],
           { duration: 240, easing: 'cubic-bezier(.2,.75,.25,1)' },
         );
       }
-      el.dispatchEvent(new CustomEvent('cues:line', { bubbles: true, detail: { index: i } }));
+      el.dispatchEvent(new CustomEvent('cues:line', { bubbles: true, detail: { index: i, cue } }));
     };
 
     const close = () => {
@@ -96,28 +89,30 @@ const many = lines.length > 1;
       }).finished.then(() => { el.hidden = true; });
     };
 
+    // Read the destination at click time: the page may point it somewhere new after load.
     const finish = (how: 'done' | 'skip') => {
-      el.dispatchEvent(new CustomEvent(`cues:${how}`, { bubbles: true }));
+      const proceed = el.dispatchEvent(new CustomEvent(`cues:${how}`, { bubbles: true, cancelable: true }));
+      if (!proceed) return;
       const href = how === 'skip' ? (el.dataset.skipHref ?? el.dataset.doneHref) : el.dataset.doneHref;
-      if (href) window.location.href = href;
+      if (href) void navigate(href);
       else close();
     };
 
     next.addEventListener('click', () => {
-      if (i < lines.length - 1) {
+      if (i < cues.length - 1) {
         i += 1;
         render();
       } else {
         finish('done');
       }
-    });
-    skip?.addEventListener('click', () => finish('skip'));
+    }, { signal });
+    skip?.addEventListener('click', () => finish('skip'), { signal });
 
     el.addEventListener('cues:restart', () => {
       i = 0;
       el.hidden = false;
       render();
-    });
+    }, { signal });
   }
 </script>
 
@@ -131,7 +126,7 @@ const many = lines.length > 1;
     max-width: 34rem;
   }
   .who {
-    font: 600 .7rem/1 var(--font-ui);
+    font: 600 .74rem/1 var(--font-ui);
     font-stretch: 75%;
     letter-spacing: .24em;
     text-transform: uppercase;
@@ -156,12 +151,4 @@ const many = lines.length > 1;
   }
   /* Ambrose's ink always reads on card, even when a room is dark. */
   .cues :global(.btn.ghost) { color: var(--cherry); }
-
-  .cues--note {
-    border-top-width: 2px;
-    padding: .85rem 1rem .8rem;
-    box-shadow: 0 4px 10px color-mix(in srgb, var(--ink) 10%, transparent);
-    rotate: -.6deg;
-  }
-  .cues--note .line { font-size: clamp(1.05rem, 3.8vw, 1.2rem); margin: .45rem 0 .6rem; }
 </style>

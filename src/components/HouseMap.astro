@@ -167,14 +167,22 @@ const hatch = `url(#${uid}-hatch)`;
 
 <style>
   .house { width: 100%; height: auto; overflow: visible; }
-  .lbl { font: 600 7.4px var(--font-ui); font-stretch: 75%; letter-spacing: .14em; fill: var(--ink); }
+  .lbl { font: 600 9px var(--font-ui); font-stretch: 75%; letter-spacing: .14em; fill: var(--ink); }
   .marquee { font: 650 9.6px var(--font-display); letter-spacing: .12em; fill: var(--cherry); }
-  .sign { font: 600 7px var(--font-ui); font-stretch: 75%; letter-spacing: .2em; fill: var(--paper); }
+  .sign { font: 600 8px var(--font-ui); font-stretch: 75%; letter-spacing: .2em; fill: var(--paper); }
 
   .hit { fill: transparent; stroke: none; }
   a.room { cursor: pointer; outline: none; }
   a.room:hover .hit { fill: color-mix(in srgb, var(--cherry) 6%, transparent); }
   a.room:focus-visible .hit { stroke: var(--cherry); stroke-width: 2.5; stroke-dasharray: 5 3; }
+  /* Where the tour goes next: a cherry frame drawn round the room. */
+  a.room.is-next .hit { stroke: var(--cherry); stroke-width: 3; fill: color-mix(in srgb, var(--cherry) 5%, transparent); }
+
+  /* After the curtain call, the stage stays open on the drawing. */
+  .curtain-l, .curtain-r { transform-box: fill-box; transition: transform .8s var(--ease-paper); }
+  .curtain-l { transform-origin: left center; }
+  .curtain-r { transform-origin: right center; }
+  .is-open .curtain-l, .is-open .curtain-r { transform: scaleX(.12); }
 
   .wash {
     opacity: 0;
