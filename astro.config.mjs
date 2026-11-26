@@ -1,7 +1,7 @@
 import { defineConfig } from 'astro/config';
 
-// The Instagram carousel (promo/) is a page that only exists under `astro dev`,
-// so it never ships with the site. `npm run promo` renders it to PNGs.
+// The Instagram carousel and the link-preview card (promo/) only exist under `astro dev`,
+// so they never ship with the site. `npm run promo` / `npm run og` render them to PNGs.
 // Rendered per request so it can read the QR address from its query string.
 const promo = {
   name: 'promo',
@@ -9,6 +9,7 @@ const promo = {
     'astro:config:setup': ({ command, injectRoute }) => {
       if (command !== 'dev') return;
       injectRoute({ pattern: '/promo', entrypoint: new URL('./promo/Carousel.astro', import.meta.url), prerender: false });
+      injectRoute({ pattern: '/og-card', entrypoint: new URL('./promo/OgCard.astro', import.meta.url), prerender: false });
     },
   },
 };

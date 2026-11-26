@@ -1,6 +1,6 @@
 # Shania's Little World
 
-A small paper theatre built for Shania's birthday (28 November 2026).
+A small paper theatre built for Shania's birthday (27 November 2026).
 Astro 7, static, no backend.
 
 ## Run it
@@ -15,6 +15,7 @@ PUBLIC_ALLOW_PLACEHOLDERS=true npm run build   # preview build with stamped plac
 npm run preview    # serve the last build
 npm run promo      # Instagram carousel → promo/out/*.png (QR is a placeholder)
 SITE_URL=https://the-real-address npm run promo   # final carousel with a working QR
+npm run og         # link-preview image → public/og.png (re-run after changing the title or date)
 ```
 
 ## Where things live

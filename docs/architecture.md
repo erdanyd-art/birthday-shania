@@ -15,7 +15,7 @@ Decisions made by Erdany on 30 October 2026:
 - Pink: soft blush `#F2B6C3`.
 - *I Will Fly* by Ten2Five appears as an outbound link in the Wings. The track is never hosted on the site.
 - English for all authored copy. Messages appear in whatever language their writers used.
-- Launch target: 26 November 2026; the birthday is 28 November 2026.
+- Launch target: 25 November 2026; the birthday is 27 November 2026 (corrected from the 28th on 13 Nov).
 
 ## Stack
 

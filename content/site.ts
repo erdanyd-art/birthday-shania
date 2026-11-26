@@ -9,7 +9,7 @@ export const site = {
   creator: 'Erdany',
   /** The host's name. Rename him here. */
   host: 'Ambrose',
-  openingNight: { iso: '2026-11-28', label: '28 November 2026' },
+  openingNight: { iso: '2026-11-27', label: '27 November 2026' },
   /** Shown under the title in WhatsApp and Instagram link previews. No birthday spoilers. */
   description: 'A small show in five rooms. Doors are open.',
   /** Revealed only when the curtain rises. */

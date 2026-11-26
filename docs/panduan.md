@@ -80,7 +80,7 @@ Ucapan Cut nanti tinggal ditambah seperti ini, lalu baris Cut di `awaiting` diha
 ## Mengubah kata-kata
 
 - Semua kalimat Ambrose: `content/host.ts`.
-- Nama Shania, nama kamu, nama host, judul, lagu: `content/site.ts`. Ganti di sini, semua
+- Nama Shania, nama kamu, nama host, judul, tanggal ulang tahun, lagu: `content/site.ts`. Ganti di sini, semua
   halaman ikut berubah.
 - Ambrose selalu memanggil "Shania", jangan nama panggilan.
 
@@ -120,6 +120,9 @@ SITE_URL=https://alamat-asli npm run promo
 ```
 
 Hasilnya di `promo/out/`. Teksnya di `promo/copy.ts`.
+
+Gambar pratinjau saat link dibagikan (`public/og.png`) dibuat dengan `npm run og`.
+Jalankan ulang setiap kali judul atau tanggal di `content/site.ts` diubah.
 
 ## Repo dan privasi
 

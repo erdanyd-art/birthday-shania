@@ -31,6 +31,7 @@ const qr = address
 const shortAddress = address ? address.host + address.pathname.replace(/\/$/, '') : null;
 
 const [year, , day] = site.openingNight.iso.split('-');
+const weekday = new Date(`${site.openingNight.iso}T12:00:00Z`).toLocaleDateString('en-GB', { weekday: 'long', timeZone: 'UTC' });
 const ordinal = (n: number) => `${n}${['th', 'st', 'nd', 'rd'][n % 10 > 3 || Math.floor((n % 100) / 10) === 1 ? 0 : n % 10]}`;
 
 // Deterministic jitter, so torn edges come out the same on every render.
@@ -117,7 +118,7 @@ const h = copy.headlines;
               <p class="pb-house">{copy.playbill.house}</p>
               <div class="double-rule"></div>
               <p class="pb-opening red">{copy.playbill.opening}</p>
-              <p class="pb-date">Saturday, {ordinal(Number(day))} November, {year}</p>
+              <p class="pb-date">{weekday}, {ordinal(Number(day))} November, {year}</p>
               <div class="rule"></div>
               <p class="pb-benefit">{copy.playbill.benefit}</p>
               <p class="pb-miss">{copy.playbill.name}</p>

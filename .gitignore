@@ -8,3 +8,4 @@ dist/
 promo/out/
 promo/.chrome-profile/
 tests/out/
+.vercel

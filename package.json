@@ -9,6 +9,7 @@
     "preview": "astro preview",
     "check": "astro check",
     "promo": "node promo/render.mjs",
+    "og": "node promo/render.mjs og",
     "test:tour": "node tests/tour.mjs"
   },
   "dependencies": {

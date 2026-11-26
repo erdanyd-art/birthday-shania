@@ -44,7 +44,7 @@ export const copy = {
     price: 'Price One Penny',
     heading: 'Theatrical Intelligence.',
     story: [
-      'We are given to understand that a new Theatre, of very modest dimensions, will open its doors on Saturday the 28th inst. It is said to have been built entirely by hand, out of paper and card, and to contain five rooms and a curtain.',
+      'We are given to understand that a new Theatre, of very modest dimensions, will open its doors on Friday the 27th inst. It is said to have been built entirely by hand, out of paper and card, and to contain five rooms and a curtain.',
       'The management insists that the curtain will not be raised until the very end, and declines to say what is behind it.',
       `The entertainment is given for the Benefit of ${subject.toUpperCase()}. We are assured that the whole Town is invited, that no money will be taken at the doors, and that the Host, a Mr. ${host.toUpperCase()}, has been rehearsing his bow.`,
     ],
@@ -76,7 +76,7 @@ export const copy = {
   ticket: {
     admit: 'Admit One',
     to: 'to any Seat in the House',
-    when: 'Opening Night · Sat. 28th Nov. 2026',
+    when: 'Opening Night · Fri. 27th Nov. 2026',
     number: 'No. 0001',
     scan: 'Scan to enter',
     label: 'Scan the stub, or tap the link in bio.',

@@ -7,7 +7,7 @@ Ignore any CLAUDE.md in a parent folder (`~/Downloads/CLAUDE.md` is a different 
 
 ## What this is
 
-A mobile-first birthday site for Shania (launch: 28 Nov 2026), built as "The Little Paper Theatre",
+A mobile-first birthday site for Shania (birthday: 27 Nov 2026), built as "The Little Paper Theatre",
 hosted by Ambrose, a cut-paper silhouette. Astro 7, static, TypeScript strict, no backend.
 Erdany (Shania's boyfriend) is the owner. He writes casual Indonesian; the site is in English.
 

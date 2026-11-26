@@ -3,6 +3,7 @@
 // Chrome over the DevTools protocol and photographs every [data-slide] at 2x.
 //   npm run promo                                   draft: the QR is a stamped placeholder
 //   SITE_URL=https://the-real-address npm run promo   final: a real QR to that address
+//   npm run og                                      the link-preview image → public/og.png (1200 × 630)
 import { spawn } from 'node:child_process';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
@@ -10,8 +11,9 @@ import { fileURLToPath } from 'node:url';
 const CHROME = process.env.CHROME ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const PORT = 4399;
 const DEBUG_PORT = 9334;
+const og = process.argv[2] === 'og';
 const root = fileURLToPath(new URL('..', import.meta.url));
-const outDir = fileURLToPath(new URL('./out/', import.meta.url));
+const outDir = og ? fileURLToPath(new URL('../public/', import.meta.url)) : fileURLToPath(new URL('./out/', import.meta.url));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function waitFor(url, check) {
@@ -32,7 +34,7 @@ const running = await fetch('http://localhost:4321/promo').then(() => true, () =
 const base = running ? 'http://localhost:4321' : `http://localhost:${PORT}`;
 const astro = running ? null : spawn('npx', ['astro', 'dev', '--port', String(PORT)], { cwd: root, stdio: 'ignore' });
 // The address for the QR travels in the query, so a running server needn't restart.
-const page = `${base}/promo${process.env.SITE_URL ? `?url=${encodeURIComponent(process.env.SITE_URL)}` : ''}`;
+const page = og ? `${base}/og-card` : `${base}/promo${process.env.SITE_URL ? `?url=${encodeURIComponent(process.env.SITE_URL)}` : ''}`;
 const profile = fileURLToPath(new URL('./.chrome-profile/', import.meta.url));
 let chrome;
 
@@ -75,7 +77,7 @@ try {
   events.add((m) => {
     if (m.method === 'Runtime.exceptionThrown') console.log('Page error:', m.params.exceptionDetails.exception?.description?.split('\n')[0]);
   });
-  await send('Emulation.setDeviceMetricsOverride', { width: 1720, height: 1000, deviceScaleFactor: 2, mobile: false });
+  await send('Emulation.setDeviceMetricsOverride', { width: 1720, height: 1000, deviceScaleFactor: og ? 1 : 2, mobile: false });
   // Every entrance animation snaps to its end state, so nothing is caught mid-move.
   await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
 
@@ -90,12 +92,12 @@ try {
     return { name: el.dataset.slide, x: r.left + scrollX, y: r.top + scrollY, width: r.width, height: r.height };
   })`);
 
-  await rm(outDir, { recursive: true, force: true });
+  if (!og) await rm(outDir, { recursive: true, force: true });
   await mkdir(outDir, { recursive: true });
   for (const { name, ...clip } of slides) {
     const { data } = await send('Page.captureScreenshot', { format: 'png', clip: { ...clip, scale: 1 }, captureBeyondViewport: true });
     await writeFile(`${outDir}${name}.png`, Buffer.from(data, 'base64'));
-    console.log(`promo/out/${name}.png`);
+    console.log(og ? `public/${name}.png` : `promo/out/${name}.png`);
   }
   ws.close();
 } finally {
